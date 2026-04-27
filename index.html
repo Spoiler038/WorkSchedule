@@ -967,13 +967,14 @@ createApp({
     }
 
     function showToast(msg, type = '') {
-      const el = document.getElementById('toast');
-      if (!el || toastTimer) { if (toastTimer) clearTimeout(toastTimer); }
-      el.textContent = msg;
-      el.className = 'toast ' + type;
-      el.style.display = 'block';
-      toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
-    }
+  const el = document.getElementById('toast');
+  if (!el) return;
+  if (toastTimer) clearTimeout(toastTimer); // убрал ||, оставил только очистку
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.style.display = 'block';
+  toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
+}
 
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
