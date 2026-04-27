@@ -37,8 +37,7 @@
       --today-bg: rgba(37, 99, 235, 0.15);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; overflow: hidden; }
 
     body {
@@ -46,7 +45,6 @@
       background: var(--bg);
       color: var(--text);
       transition: background 0.3s, color 0.3s;
-      -webkit-tap-highlight-color: transparent;
     }
 
     .app-header {
@@ -88,11 +86,18 @@
       display: flex; flex-direction: column;
       height: 100vh;
       padding-top: var(--header-h);
+      padding-bottom: 64px;
+    }
+
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .calendar-section {
       flex-shrink: 0;
-      overflow: hidden;
     }
 
     .calendar-header {
@@ -106,7 +111,6 @@
       background: var(--card);
       border-bottom: 1px solid var(--border);
     }
-    .calendar-header span { padding: 4px 0; }
 
     .calendar-grid {
       display: grid;
@@ -119,19 +123,18 @@
     .day-cell {
       background: var(--card);
       aspect-ratio: 1 / 1;
-      padding: 3px;
+      padding: 2px;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      transition: background 0.2s;
       position: relative;
     }
     .day-cell:active { background: var(--border); }
     .day-cell.other-month { opacity: 0.4; }
     .day-cell.today { 
       background: var(--today-bg) !important;
-      box-shadow: inset 0 0 0 1px var(--primary);
+      box-shadow: inset 0 0 0 2px var(--primary);
     }
 
     .day-number {
@@ -156,7 +159,7 @@
     .worker-chip {
       background: var(--primary);
       color: white;
-      font-size: 10px;
+      font-size: 9px;
       padding: 1px 3px;
       border-radius: 3px;
       white-space: nowrap;
@@ -167,25 +170,38 @@
       flex-shrink: 0;
     }
 
-    .unavailable-dot {
+    /* Точки недоступности */
+    .unavail-dots {
       position: absolute;
-      top: 2px; left: 2px;
-      width: 7px; height: 7px;
-      background: var(--danger);
-      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
       z-index: 3;
-      border: 1px solid var(--card);
-    }
-    .unavailable-dot.admin-can-clear {
-      cursor: pointer;
-      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.4);
     }
 
+    .unavail-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.5);
+      cursor: pointer;
+      transition: transform 0.15s;
+      position: relative;
+    }
+    .unavail-dot:hover {
+      transform: scale(1.4);
+      z-index: 4;
+    }
+
+    /* Легенда */
     .legend-section {
       flex: 1;
       overflow-y: auto;
-      padding: 8px 12px;
+      padding: 8px 12px 4px;
       background: var(--bg);
+      -webkit-overflow-scrolling: touch;
     }
 
     .legend-item {
@@ -197,11 +213,31 @@
       border-bottom: 1px solid var(--border);
     }
     .legend-item:last-child { border-bottom: none; }
-    .legend-name { font-weight: 500; }
+    
+    .legend-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+    }
+    
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    
     .legend-count {
       font-weight: 700;
       color: var(--primary);
       font-size: 14px;
+    }
+    
+    .legend-unavailable {
+      font-size: 10px;
+      color: var(--danger);
+      margin-left: 4px;
     }
 
     /* Нижняя панель */
@@ -243,6 +279,7 @@
       text-align: center;
       color: var(--text);
     }
+    body.light .month-title { color: #020617; }
 
     /* Toast */
     .toast {
@@ -352,8 +389,8 @@
     .worker-row:last-child { border-bottom: none; }
     .worker-info { flex: 1; min-width: 0; }
     .worker-name { font-weight: 600; font-size: 14px; }
-    .worker-meta { font-size: 11px; color: var(--text-muted); }
-    .worker-actions { display: flex; align-items: center; gap: 6px; }
+    .worker-meta { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .worker-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
     .switch {
       position: relative; display: inline-block; width: 40px; height: 22px;
@@ -376,19 +413,13 @@
 
     .empty-state {
       text-align: center; color: var(--text-muted);
-      padding: 30px; font-size: 13px;
+      padding: 24px; font-size: 13px;
     }
 
     * { scrollbar-width: thin; scrollbar-color: #4b5563 #1f2937; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #1f2937; }
     ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-
-    @media (max-width: 400px) {
-      .day-cell { padding: 2px; }
-      .day-number { font-size: 10px; }
-      .worker-chip { font-size: 9px; }
-    }
 
     [v-cloak] { display: none; }
   </style>
@@ -406,6 +437,9 @@
       {{ currentMonthTitle }}
     </div>
     <div class="header-right">
+      <button v-if="user" class="icon-btn" @click="toggleTheme" :title="isDark ? 'Светлая тема' : 'Тёмная тема'">
+        {{ isDark ? '☀️' : '🌙' }}
+      </button>
       <button v-if="user && user.role === 'admin'" class="icon-btn" @click="openSettings" title="Настройки">⚙️</button>
     </div>
   </div>
@@ -433,47 +467,56 @@
 
     <!-- Main Content -->
     <template v-else>
-      <!-- Calendar Section -->
-      <div class="calendar-section" 
+      <div class="main-content" 
            @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-        <div class="calendar-header">
-          <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
-        </div>
-        <div class="calendar-grid">
-          <div v-for="day in calendarDays" :key="day.dateStr"
-               :class="['day-cell', 
-                        { 'other-month': !day.isCurrentMonth, 
-                          'today': day.isToday }]"
-               @click="handleDayClick(day)">
-            <div class="day-number">{{ day.dayNum }}</div>
-            <div v-for="uid in getDayUnavailable(day.dateStr)" :key="uid"
-                 :class="['unavailable-dot', { 'admin-can-clear': user.role === 'admin' }]"
-                 :style="{ background: getWorkerColor(uid), top: (getUnavailableIndex(day.dateStr, uid) * 8 + 2) + 'px' }"
-                 :title="getWorkerName(uid) + ' — недоступен'"
-                 @click.stop="user.role === 'admin' && clearUnavailability(uid, day.dateStr)">
-            </div>
-            <div class="day-workers">
-              <div v-for="w in day.workers" :key="w.id"
-                   class="worker-chip"
-                   :style="{ background: getWorkerColor(w.id) }"
-                   @click.stop="callWorker(w)">
-                {{ w.name.split(' ')[0] }}
+        <!-- Calendar Section -->
+        <div class="calendar-section">
+          <div class="calendar-header">
+            <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+          </div>
+          <div class="calendar-grid">
+            <div v-for="day in calendarDays" :key="day.dateStr"
+                 :class="['day-cell', 
+                          { 'other-month': !day.isCurrentMonth, 
+                            'today': day.isToday }]"
+                 @click="handleDayClick(day)">
+              <div class="day-number">{{ day.dayNum }}</div>
+              <!-- Точки недоступности -->
+              <div class="unavail-dots" v-if="getDayUnavailable(day.dateStr).length > 0">
+                <div v-for="info in getDayUnavailableInfo(day.dateStr)" :key="info.workerId"
+                     class="unavail-dot"
+                     :style="{ background: info.color }"
+                     :title="info.name + ' — не может выйти'"
+                     @click.stop="user.role === 'admin' && clearUnavailability(info.workerId, day.dateStr)">
+                </div>
+              </div>
+              <!-- Сотрудники на смене -->
+              <div class="day-workers">
+                <div v-for="w in day.workers" :key="w.id"
+                     class="worker-chip"
+                     :style="{ background: getWorkerColor(w.id) }"
+                     @click.stop="callWorker(w)">
+                  {{ w.name.split(' ')[0] }}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Legend -->
-      <div class="legend-section">
-        <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
-          <span class="legend-name">
-            <span :style="{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: stat.color, marginRight: '6px' }"></span>
-            {{ stat.name }}
-          </span>
-          <span class="legend-count">{{ stat.shifts }} смен{{ getShiftEnding(stat.shifts) }}</span>
+        <!-- Legend -->
+        <div class="legend-section">
+          <div v-if="workerStats.length === 0" class="empty-state">Нет данных за этот месяц</div>
+          <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
+            <div class="legend-name">
+              <span class="legend-dot" :style="{ background: stat.color }"></span>
+              {{ stat.name }}
+              <span v-if="stat.unavailableDays > 0" class="legend-unavailable">
+                ({{ stat.unavailableDays }} дн. недоступен)
+              </span>
+            </div>
+            <span class="legend-count">{{ stat.shifts }} смен{{ getShiftEnding(stat.shifts) }}</span>
+          </div>
         </div>
-        <div v-if="workerStats.length === 0" class="empty-state">Нет сотрудников в этом месяце</div>
       </div>
     </template>
   </div>
@@ -484,23 +527,20 @@
     <span class="month-title">{{ currentMonthTitle }}</span>
     <button class="nav-btn" @click="nextMonth">→</button>
     <button v-if="user.role === 'admin'" class="nav-btn" 
-            :style="{ background: availabilityMode ? 'var(--danger)' : 'var(--primary)' }"
+            :style="{ background: availabilityMode ? 'var(--danger)' : 'var(--success)' }"
             @click="toggleAvailabilityMode">
       {{ availabilityMode ? '🔴' : '🟢' }}
     </button>
   </div>
 
   <!-- Settings Sheet -->
-  <div :class="['sheet', { active: showSettings }]" @click.self="showSettings = false">
+  <div :class="['sheet', { active: showSettings }]" @click.self="closeSettings">
     <div class="sheet-content">
       <div class="settings-header">
         <h3>⚙️ Администрирование</h3>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button class="icon-btn" @click="toggleTheme" :title="isDark ? 'Светлая тема' : 'Тёмная тема'">
-            {{ isDark ? '☀️' : '🌙' }}
-          </button>
           <button class="icon-btn" @click="logout" title="Выход">🚪</button>
-          <button class="icon-btn" @click="showSettings = false" style="font-size:18px;">✕</button>
+          <button class="icon-btn" @click="closeSettings" style="font-size:18px;">✕</button>
         </div>
       </div>
 
@@ -512,7 +552,7 @@
         </div>
       </div>
 
-      <div class="flex-row" style="margin-bottom:16px;justify-content:space-between;">
+      <div class="flex-row" style="margin-bottom:12px;justify-content:space-between;">
         <span style="font-weight:600;font-size:14px;">👥 Сотрудники</span>
         <button class="btn btn-primary btn-sm" @click="openAddWorkerModal">+ Добавить</button>
       </div>
@@ -538,7 +578,6 @@
         </div>
       </div>
 
-      <!-- Кнопка снятия всех отметок -->
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
         <button class="btn btn-danger btn-sm" @click="clearAllUnavailability" style="width:100%;">
           🗑️ Снять все отметки недоступности
@@ -591,8 +630,7 @@ const REPO_NAME = 'WorkSchedule';
 const BRANCH = 'main';
 const SUPER_ADMIN_PHONE = '79778700833';
 
-// Цвета для сотрудников
-const WORKER_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#ca8a04'];
+const WORKER_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#ca8a04', '#4f46e5'];
 
 function formatPhone(phone) {
   let c = String(phone || '').replace(/[^\d]/g, '');
@@ -688,13 +726,13 @@ createApp({
     
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
+
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
     
     const currentMonthTitle = computed(() => {
-      const d = currentMonth.value;
-      return d.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
+      return currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
     });
 
     function getWorkerColor(workerId) {
@@ -745,20 +783,47 @@ createApp({
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
     }
 
-    // Статистика смен
+    // Получить список недоступных сотрудников на день (с цветами)
+    function getDayUnavailable(dateStr) {
+      return Object.entries(unavailability.value)
+        .filter(([_, dates]) => dates.includes(dateStr))
+        .map(([workerId]) => workerId);
+    }
+
+    function getDayUnavailableInfo(dateStr) {
+      return getDayUnavailable(dateStr).map(workerId => ({
+        workerId,
+        name: getWorkerName(workerId),
+        color: getWorkerColor(workerId)
+      }));
+    }
+
+    // Статистика месяца
     const workerStats = computed(() => {
       const year = currentMonth.value.getFullYear();
       const month = currentMonth.value.getMonth();
       const stats = {};
+      const unavailCount = {};
       
+      // Считаем смены
       for (let d = 1; d <= 31; d++) {
         const date = new Date(year, month, d);
         if (date.getMonth() !== month) continue;
         const ds = date.toISOString().slice(0, 10);
+        
+        // Смены
         const ids = schedule.value[ds] || [];
         for (const id of ids) {
-          if (!stats[id]) stats[id] = 0;
-          stats[id]++;
+          if (!stats[id]) stats[id] = { shifts: 0, unavail: 0 };
+          stats[id].shifts++;
+        }
+        
+        // Недоступность
+        for (const [workerId, dates] of Object.entries(unavailability.value)) {
+          if (dates.includes(ds)) {
+            if (!stats[workerId]) stats[workerId] = { shifts: 0, unavail: 0 };
+            stats[workerId].unavail++;
+          }
         }
       }
       
@@ -767,7 +832,8 @@ createApp({
         .map(w => ({
           id: w.id,
           name: w.name,
-          shifts: stats[w.id],
+          shifts: stats[w.id].shifts,
+          unavailableDays: stats[w.id].unavail,
           color: getWorkerColor(w.id)
         }))
         .sort((a, b) => b.shifts - a.shifts);
@@ -779,34 +845,50 @@ createApp({
       return '';
     }
 
-    function getDayUnavailable(dateStr) {
-      const result = [];
-      for (const [workerId, dates] of Object.entries(unavailability.value)) {
-        if (dates.includes(dateStr)) result.push(workerId);
-      }
-      return result;
-    }
-
-    function getUnavailableIndex(dateStr, workerId) {
-      return getDayUnavailable(dateStr).indexOf(workerId);
-    }
-
     async function clearUnavailability(workerId, dateStr) {
+      if (user.value.role !== 'admin') return;
       if (!unavailability.value[workerId]) return;
       const arr = unavailability.value[workerId];
       const idx = arr.indexOf(dateStr);
-      if (idx > -1) arr.splice(idx, 1);
+      if (idx > -1) { arr.splice(idx, 1); showToast('✅ Отметка снята', 'success'); }
       if (!arr.length) delete unavailability.value[workerId];
       await db.saveFile('unavailability.json', unavailability.value);
-      showToast('✅ Отметка снята', 'success');
     }
 
     async function clearAllUnavailability() {
-      if (!confirm('Снять ВСЕ отметки недоступности для всех сотрудников?')) return;
+  // Считаем общее количество отметок
+  let totalMarks = 0;
+  for (const dates of Object.values(unavailability.value)) {
+    totalMarks += dates.length;
+  }
+  
+  if (totalMarks === 0) {
+    showToast('Нет отметок для удаления', 'warning');
+    return;
+  }
+  
+  // Собираем информацию для отображения
+  const details = Object.entries(unavailability.value)
+    .filter(([_, dates]) => dates.length > 0)
+    .map(([workerId, dates]) => {
+      const w = workers.value.find(x => x.id === workerId);
+      return `👤 ${w ? w.name : 'Неизвестный'}: ${dates.length} дн.`;
+    })
+    .join('\n');
+  
+  showConfirmModal({
+    title: '🗑️ Снятие всех отметок',
+    message: `Будут сняты <b>все отметки недоступности</b> для всех сотрудников.\n\n📊 Всего отметок: <b>${totalMarks}</b>\n\n${details}\n\nЭто действие нельзя отменить.`,
+    confirmText: 'Снять все отметки',
+    confirmClass: 'btn-danger',
+    onConfirm: async () => {
       unavailability.value = {};
       await db.saveFile('unavailability.json', unavailability.value);
-      showToast('🗑️ Все отметки сняты', 'success');
+      closeSettings();
+      showToast('✅ Все отметки сняты', 'success');
     }
+  });
+}
 
     async function loadData() {
       try {
@@ -888,7 +970,14 @@ createApp({
       } else { showToast('❌ Email не совпадает', 'error'); }
     }
 
-    function logout() { localStorage.removeItem('ws_session'); user.value = null; }
+    function logout() {
+      localStorage.removeItem('ws_session');
+      user.value = null;
+      showSettings.value = false;
+    }
+    
+    function closeSettings() { showSettings.value = false; }
+
     function prevMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1); }
     function nextMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1); }
     function goToday() { currentMonth.value = new Date(); }
@@ -920,17 +1009,25 @@ createApp({
       const today = new Date(); today.setHours(0,0,0,0);
       const target = new Date(dateStr); target.setHours(0,0,0,0);
       if (target < today) { showToast('Нельзя изменить прошедший день', 'warning'); return; }
+      
       if (!unavailability.value[user.value.id]) unavailability.value[user.value.id] = [];
       const arr = unavailability.value[user.value.id];
       const idx = arr.indexOf(dateStr);
       idx > -1 ? arr.splice(idx, 1) : arr.push(dateStr);
+      
+      // Если массив пуст — удаляем ключ
+      if (arr.length === 0) delete unavailability.value[user.value.id];
+      
       db.saveFile('unavailability.json', unavailability.value);
-      showToast(idx > -1 ? '✅ День доступен' : '❌ День недоступен', 'warning');
+      showToast(idx > -1 ? '✅ День доступен' : '❌ День отмечен', 'warning');
     }
 
     function toggleAvailabilityMode() {
       availabilityMode.value = !availabilityMode.value;
-      showToast(availabilityMode.value ? '🟡 Отметки включены' : '🟢 Отметки выключены', 'warning');
+      showToast(
+        availabilityMode.value ? '🟡 Режим отметок ВКЛЮЧЁН — нажимайте на дни' : '🟢 Режим отметок выключен', 
+        'warning'
+      );
     }
 
     function openAddWorkerModal() { editingWorker.value = null; workerForm.value = { name: '', phone: '' }; showWorkerModal.value = true; }
@@ -954,16 +1051,25 @@ createApp({
     async function resetDevice(w) { w.deviceId = null; await db.saveFile('workers.json', workers.value); showToast('Устройство сброшено', 'success'); }
     
     async function deleteWorker(w) {
-      if (!confirm(`Удалить ${w.name}?`)) return;
+  showConfirmModal({
+    title: '🗑️ Удаление сотрудника',
+    message: `Вы уверены, что хотите удалить сотрудника?\n\n👤 <b>${w.name}</b>\n📱 ${w.phone}\n\nЭто действие нельзя отменить.`,
+    confirmText: 'Удалить',
+    confirmClass: 'btn-danger',
+    onConfirm: async () => {
       workers.value = workers.value.filter(x => x.id !== w.id);
       for (let d in schedule.value) {
         schedule.value[d] = schedule.value[d].filter(id => id !== w.id);
         if (!schedule.value[d].length) delete schedule.value[d];
       }
+      delete unavailability.value[w.id];
       await db.saveFile('workers.json', workers.value);
       await db.saveFile('schedule.json', schedule.value);
-      showToast('Удалён', 'success');
+      await db.saveFile('unavailability.json', unavailability.value);
+      showToast('✅ Сотрудник удалён', 'success');
     }
+  });
+}
 
     function openSetScheduleModal() { selectedScheduleDate.value = new Date().toISOString().slice(0,10); showScheduleModal.value = true; }
     function isScheduled(wid, d) { return (schedule.value[d] || []).includes(wid); }
@@ -1028,6 +1134,50 @@ createApp({
       }
     });
 
+    function showConfirmModal({ title, message, confirmText, confirmClass, onConfirm }) {
+  // Создаём оверлей
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;';
+  
+  // Создаём модальное окно
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:var(--card);border-radius:20px;padding:24px;max-width:340px;width:100%;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.3);';
+  modal.innerHTML = `
+    <div style="font-size:40px;text-align:center;margin-bottom:12px;">⚠️</div>
+    <div class="modal-title" style="text-align:center;">${title}</div>
+    <div class="modal-text" style="text-align:center;white-space:pre-line;">${message}</div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button id="confirm-cancel" class="btn btn-secondary" style="flex:1;">Отмена</button>
+      <button id="confirm-ok" class="btn ${confirmClass || 'btn-primary'}" style="flex:1;">${confirmText || 'Подтвердить'}</button>
+    </div>
+  `;
+  
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  
+  // Обработчики
+  const close = () => {
+    document.body.removeChild(overlay);
+    document.removeEventListener('keydown', onKeyDown);
+  };
+  
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  
+  document.addEventListener('keydown', onKeyDown);
+  
+  modal.querySelector('#confirm-cancel').addEventListener('click', close);
+  modal.querySelector('#confirm-ok').addEventListener('click', () => {
+    close();
+    if (onConfirm) onConfirm();
+  });
+  
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+}
+
     return {
       user, loginPhone, loginPass, loginError, loading, needAdminPassword,
       workers, schedule, unavailability, adminEmail,
@@ -1036,17 +1186,18 @@ createApp({
       showSettings, showWorkerModal, showScheduleModal,
       editingWorker, workerForm, selectedScheduleDate,
       isDark, showResetPasswordOption,
-      handleLogin, resetAdminPassword, logout, prevMonth, nextMonth, goToday,
+      handleLogin, resetAdminPassword, logout, closeSettings,
+      prevMonth, nextMonth, goToday,
       onTouchStart, onTouchMove, onTouchEnd,
       handleDayClick, toggleUnavailability,
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
       openSetScheduleModal, isScheduled, toggleSchedule,
-      callWorker,
+      callWorker, showConfirmModal,
       saveAdminEmail, openSettings, toggleTheme, showToast,
-      getWorkerColor, getWorkerName, getDayUnavailable,
-      getUnavailableIndex, clearUnavailability, clearAllUnavailability,
+      getWorkerColor, getDayUnavailable, getDayUnavailableInfo,
+      clearUnavailability, clearAllUnavailability,
       workerStats, getShiftEnding
     };
   }
