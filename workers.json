@@ -22,5 +22,13 @@
     "role": "worker",
     "isActive": true,
     "deviceId": null
+  },
+  {
+    "id": "w_1777261580397",
+    "name": "Иван",
+    "phone": "79667654321",
+    "role": "worker",
+    "isActive": true,
+    "deviceId": null
   }
 ]
