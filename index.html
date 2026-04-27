@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>График работы</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="График">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+  
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e5e7eb;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --header-h: 48px;
+      --today-bg: rgba(59, 130, 246, 0.25);
+    }
+
+    body.light {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #020617;
+      --text-muted: #475569;
+      --border: #cbd5e1;
+      --today-bg: rgba(37, 99, 235, 0.15);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .app-header {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: var(--header-h);
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px;
+      z-index: 100;
+      border-bottom: 1px solid var(--border);
+    }
+    body.light .app-header { background: rgba(248, 250, 252, 0.95); }
+
+    .header-left { display: flex; align-items: center; gap: 8px; }
+    .header-center { flex: 1; text-align: center; font-weight: 600; font-size: 15px; }
+    .header-right { display: flex; align-items: center; gap: 6px; }
+
+    .icon-btn {
+      background: none; border: none;
+      color: var(--text); font-size: 18px;
+      cursor: pointer; padding: 6px;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .icon-btn:hover { background: var(--border); }
+    .icon-btn:active { transform: scale(0.95); }
+
+    .role-badge {
+      background: var(--primary);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .container {
+      display: flex; flex-direction: column;
+      height: 100vh;
+      padding-top: var(--header-h);
+    }
+
+    .calendar-wrapper {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .calendar-header {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 2px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .calendar-header span { padding: 4px 0; }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      flex: 1;
+      gap: 1px;
+      background: var(--border);
+      padding: 1px;
+      overflow: hidden;
+    }
+
+    .day-cell {
+      background: var(--card);
+      min-height: 60px;
+      padding: 3px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 0.2s;
+      position: relative;
+    }
+    .day-cell:active { background: var(--border); }
+    .day-cell.other-month { opacity: 0.4; }
+    .day-cell.today { background: var(--today-bg); }
+
+    .day-number {
+      font-size: 11px;
+      font-weight: 500;
+      text-align: right;
+      margin-bottom: 1px;
+      z-index: 2;
+    }
+
+    .day-workers {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .worker-chip {
+      background: var(--primary);
+      color: white;
+      font-size: 9px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      transition: transform 0.15s;
+      line-height: 1.3;
+      max-height: 16px;
+    }
+    .worker-chip:active { transform: scale(0.96); }
+    .worker-chip.unavailable {
+      background: var(--danger);
+      opacity: 0.85;
+    }
+
+    .unavailable-dot {
+      width: 6px; height: 6px;
+      background: var(--danger);
+      border-radius: 50%;
+      position: absolute;
+      top: 3px; left: 3px;
+      z-index: 1;
+    }
+
+    .bottom-bar {
+      display: flex; justify-content: center; align-items: center;
+      padding: 8px; gap: 12px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+    }
+
+    .nav-btn {
+      background: var(--primary);
+      color: white; border: none;
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .nav-btn:active { transform: scale(0.96); }
+
+    .month-title { font-weight: 700; font-size: 15px; min-width: 140px; text-align: center; }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      background: var(--card); color: var(--text);
+      padding: 10px 20px; border-radius: 10px;
+      font-size: 13px; z-index: 9999;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      display: none; max-width: 90%; text-align: center;
+      animation: fadeInOut 3s ease-in-out;
+    }
+    .toast.success { border-color: var(--success); }
+    .toast.warning { border-color: var(--warning); }
+    .toast.error { border-color: var(--danger); }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; top: 50px; }
+      15% { opacity: 1; top: 60px; }
+      85% { opacity: 1; top: 60px; }
+      100% { opacity: 0; top: 50px; }
+    }
+
+    /* Sheet */
+    .sheet {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none; z-index: 200;
+    }
+    .sheet.active { display: block; }
+
+    .sheet-content {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: var(--card);
+      border-radius: 16px 16px 0 0;
+      padding: 16px; max-height: 85vh;
+      overflow-y: auto;
+      border-top: 1px solid var(--border);
+    }
+
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+      z-index: 300; padding: 16px;
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 360px; width: 100%;
+      border: 1px solid var(--border);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+    .modal-text { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+
+    input, select, textarea {
+      width: 100%; padding: 10px 12px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+
+    .btn {
+      padding: 10px 16px; border-radius: 10px;
+      border: none; font-family: inherit;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; width: 100%;
+      transition: all 0.15s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
+
+    .flex-row { display: flex; gap: 8px; }
+    .flex-row .btn { flex: 1; }
+
+    .worker-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border); gap: 8px;
+    }
+    .worker-row:last-child { border-bottom: none; }
+    .worker-info { flex: 1; min-width: 0; }
+    .worker-name { font-weight: 600; font-size: 14px; }
+    .worker-meta { font-size: 11px; color: var(--text-muted); }
+    .worker-actions { display: flex; gap: 4px; }
+
+    .switch {
+      position: relative; display: inline-block; width: 40px; height: 22px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #64748b; border-radius: 22px; transition: 0.2s;
+    }
+    .slider:before {
+      position: absolute; content: "";
+      height: 16px; width: 16px;
+      left: 3px; bottom: 3px;
+      background: white; border-radius: 50%; transition: 0.2s;
+    }
+    input:checked + .slider { background: var(--primary); }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    .empty-state {
+      text-align: center; color: var(--text-muted);
+      padding: 30px; font-size: 13px;
+    }
+
+    @media (min-width: 768px) {
+      .sheet-content { max-width: 500px; margin: 0 auto; }
+      .modal { max-width: 450px; }
+    }
+
+    [v-cloak] { display: none; }
+  </style>
+</head>
+<body class="dark">
+
+<div id="app" v-cloak>
+  <!-- Header -->
+  <div class="app-header">
+    <div class="header-left">
+      <button class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
+      <span v-if="user && user.role === 'admin'" class="role-badge">👑 Админ</span>
+    </div>
+    <div class="header-center">📅 График работы</div>
+    <div class="header-right">
+      <button v-if="user && user.role === 'admin'" class="icon-btn" 
+              :style="{color: availabilityMode ? 'var(--warning)' : ''}" 
+              @click="toggleAvailabilityMode" 
+              :title="availabilityMode ? 'Режим отметок ВКЛ' : 'Включить режим отметок'">
+        {{ availabilityMode ? '🔴' : '🟢' }}
+      </button>
+      <button class="icon-btn" @click="toggleTheme" :title="isDark ? 'Светлая тема' : 'Тёмная тема'">
+        {{ isDark ? '☀️' : '🌙' }}
+      </button>
+      <button v-if="user && user.role === 'admin'" class="icon-btn" @click="openSettings" title="Настройки">⚙️</button>
+      <button v-if="user && user.role === 'admin'" class="icon-btn" @click="logout" title="Выход">🚪</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Login -->
+    <div v-if="!user" style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;">
+      <div class="modal" style="max-width:340px;width:100%;">
+        <div class="modal-title">🔐 Вход</div>
+        <div class="modal-text">Введите номер телефона для входа</div>
+        <input type="tel" v-model="loginPhone" @keyup.enter="handleLogin" placeholder="Телефон (+7, 8 или 9...)" 
+               style="margin-bottom:12px;">
+        <input v-if="needAdminPassword" type="password" v-model="loginPass" 
+               @keyup.enter="handleLogin" placeholder="Пароль администратора" style="margin-bottom:12px;">
+        <button class="btn btn-primary" @click="handleLogin" :disabled="loading">Войти</button>
+        <p v-if="loginError" style="color:var(--danger);font-size:12px;margin-top:8px;">{{ loginError }}</p>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div v-else class="calendar-wrapper">
+      <!-- Calendar Header -->
+      <div class="calendar-header">
+        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div class="calendar-grid">
+        <div v-for="day in calendarDays" :key="day.dateStr"
+             :class="['day-cell', 
+                      { 'other-month': !day.isCurrentMonth, 
+                        'today': day.isToday }]"
+             @click="handleDayClick(day)">
+          <div class="day-number">{{ day.dayNum }}</div>
+          <div v-if="availabilityMode && user" 
+               class="unavailable-dot" 
+               v-show="isDayUnavailable(day.dateStr)"></div>
+          <div class="day-workers">
+            <div v-for="w in day.workers" :key="w.id"
+                 :class="['worker-chip', { 'unavailable': isWorkerUnavailable(w.id, day.dateStr) }]"
+                 @click.stop="callWorker(w)">
+              {{ w.name }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer Navigation -->
+  <div class="bottom-bar" v-if="user && user.role === 'admin'">
+    <button class="btn btn-primary btn-sm" @click="openAddWorkerModal">+ Сотрудник</button>
+    <button class="btn btn-sm btn-secondary" @click="openSetScheduleModal">📝 График</button>
+    <button class="btn btn-sm" :class="availabilityMode ? 'btn-primary' : 'btn-secondary'" 
+            @click="toggleAvailabilityMode">
+      {{ availabilityMode ? '🔴 Режим отметок' : '🟢 Вкл. отметки' }}
+    </button>
+  </div>
+  <div class="bottom-bar" v-else-if="user">
+    <button class="nav-btn" @click="prevMonth">←</button>
+    <span class="month-title">{{ currentMonthTitle }}</span>
+    <button class="nav-btn" @click="nextMonth">→</button>
+  </div>
+
+  <!-- Admin settings sheet -->
+  <div :class="['sheet', { active: showSettings }]" @click.self="showSettings = false">
+    <div class="sheet-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">⚙️ Администрирование</h3>
+        <button class="icon-btn" @click="showSettings = false">✕</button>
+      </div>
+
+      <!-- Admin email -->
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;color:var(--text-muted);">Email для восстановления пароля</label>
+        <div class="flex-row">
+          <input v-model="adminEmail" type="email" placeholder="admin@example.com" style="flex:1;">
+          <button class="btn btn-primary" style="width:auto;flex-shrink:0;" @click="saveAdminEmail">💾</button>
+        </div>
+      </div>
+
+      <!-- Workers list -->
+      <div style="margin-bottom:12px;font-weight:600;font-size:14px;">👥 Сотрудники</div>
+      <div v-if="workers.length === 0" class="empty-state">Нет сотрудников</div>
+      <div v-for="w in workers" :key="w.id" class="worker-row">
+        <div class="worker-info">
+          <div class="worker-name">{{ w.name }}</div>
+          <div class="worker-meta">
+            {{ w.phone }}
+            <span v-if="w.deviceId" style="color:var(--text-muted);"> · 📱 привязан</span>
+            <span v-if="!w.isActive" style="color:var(--danger);"> · неактивен</span>
+          </div>
+        </div>
+        <div class="worker-actions">
+          <label class="switch">
+            <input type="checkbox" :checked="w.isActive !== false" @change="toggleWorkerActive(w)">
+            <span class="slider"></span>
+          </label>
+          <button class="icon-btn" @click="openEditWorkerModal(w)" style="font-size:14px;">✏️</button>
+          <button v-if="w.deviceId" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство" style="font-size:14px;">📱</button>
+          <button class="icon-btn" @click="deleteWorker(w)" style="color:var(--danger);font-size:14px;">🗑️</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Worker Modal -->
+  <div :class="['modal-overlay', { active: showWorkerModal }]" @click.self="showWorkerModal = false">
+    <div class="modal">
+      <div class="modal-title">{{ editingWorker ? '✏️ Редактировать' : '➕ Новый сотрудник' }}</div>
+      <input v-model="workerForm.name" placeholder="Имя">
+      <input v-model="workerForm.phone" placeholder="Телефон (79991234567)">
+      <div class="flex-row" style="margin-top:12px;">
+        <button class="btn btn-secondary" @click="showWorkerModal = false">Отмена</button>
+        <button class="btn btn-primary" @click="saveWorker">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Set Schedule Modal -->
+  <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="showScheduleModal = false">
+    <div class="modal" style="max-height:80vh;overflow-y:auto;">
+      <div class="modal-title">📝 Редактировать график</div>
+      <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
+      <div v-if="selectedScheduleDate" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+        Отметьте сотрудников на смену {{ formatDate(selectedScheduleDate) }}:
+      </div>
+      <div v-if="selectedScheduleDate" v-for="w in workers" :key="w.id" 
+           style="display:flex;align-items:center;gap:8px;padding:6px 0;">
+        <input type="checkbox" :checked="isScheduled(w.id, selectedScheduleDate)" 
+               @change="toggleSchedule(w.id, selectedScheduleDate)" 
+               style="width:18px;height:18px;accent-color:var(--primary);">
+        <span style="font-size:13px;">{{ w.name }}</span>
+      </div>
+      <div class="flex-row" style="margin-top:12px;">
+        <button class="btn btn-secondary" @click="showScheduleModal = false">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+</div>
+
+<script>
+// ========== GITHUB CONFIG ==========
+// ВСТАВЬ СВОЙ ЗАШИФРОВАННЫЙ ТОКЕН:
+const _e = [19,29,19,55,6,89,5,114,81,96,91,39,22,4,23,80,18,61,17,45,37,44,67,127,96,83,40,11,9,82,47,11,25,47,82,89,29,59,75,65];
+const _k = 'tuchka2026coffee';
+const GITHUB_TOKEN = _e.map((b,i) => String.fromCharCode(b ^ _k.charCodeAt(i % _k.length))).join('');
+
+const REPO_OWNER = 'spoiler038';
+const REPO_NAME = 'WorkSchedule';
+const BRANCH = 'main';
+const SUPER_ADMIN_PHONE = '79778700833';
+// ===================================
+
+function formatPhone(phone) {
+  let c = String(phone || '').replace(/[^\d]/g, '');
+  if (c.startsWith('8') && c.length === 11) c = '7' + c.slice(1);
+  else if (c.length === 10 && c.startsWith('9')) c = '7' + c;
+  return c;
+}
+
+function getDeviceId() {
+  let id = localStorage.getItem('ws_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('ws_device_id', id);
+  }
+  return id;
+}
+
+class GitHubDB {
+  constructor() {
+    this.baseUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
+    this.headers = {
+      'Authorization': `token ${GITHUB_TOKEN}`,
+      'Accept': 'application/vnd.github.v3+json'
+    };
+  }
+
+  async getFile(filename) {
+    try {
+      const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${filename}?t=${Date.now()}`;
+      const r = await fetch(url);
+      if (r.status === 404 || r.status === 400) return null;
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const text = await r.text();
+      if (!text || text.trim() === '') return null;
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('getFile error:', filename, e);
+      return null;
+    }
+  }
+
+  async saveFile(filename, data) {
+    try {
+      let sha = null;
+      const getR = await fetch(`${this.baseUrl}/${filename}`, { headers: this.headers });
+      if (getR.status === 200) {
+        const info = await getR.json();
+        sha = info.sha;
+      }
+      
+      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+      const body = { message: `Update ${filename}`, content, branch: BRANCH };
+      if (sha) body.sha = sha;
+      
+      const putR = await fetch(`${this.baseUrl}/${filename}`, {
+        method: 'PUT',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      if (!putR.ok) {
+        const err = await putR.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${putR.status}`);
+      }
+    } catch (e) {
+      console.error('saveFile error:', filename, e);
+      throw e;
+    }
+  }
+}
+
+const db = new GitHubDB();
+
+const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+
+createApp({
+  setup() {
+    const user = ref(null);
+    const loginPhone = ref('');
+    const loginPass = ref('');
+    const loginError = ref('');
+    const loading = ref(false);
+    
+    const workers = ref([]);
+    const schedule = ref({});
+    const unavailability = ref({});
+    const adminEmail = ref('');
+    
+    const currentMonth = ref(new Date());
+    const availabilityMode = ref(false);
+    
+    const showSettings = ref(false);
+    const showWorkerModal = ref(false);
+    const showScheduleModal = ref(false);
+    const editingWorker = ref(null);
+    const workerForm = ref({ name: '', phone: '' });
+    const selectedScheduleDate = ref('');
+    
+    const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
+    let toastTimer = null;
+
+    // ===== COMPUTED =====
+    const needAdminPassword = computed(() => {
+      const phone = formatPhone(loginPhone.value);
+      return phone === SUPER_ADMIN_PHONE;
+    });
+
+    const currentMonthTitle = computed(() => {
+      return currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
+    });
+
+    const calendarDays = computed(() => {
+      const year = currentMonth.value.getFullYear();
+      const month = currentMonth.value.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      
+      let startDay = firstDay.getDay() || 7;
+      startDay -= 1;
+
+      const days = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().slice(0, 10);
+
+      const prevLastDay = new Date(year, month, 0);
+      for (let i = startDay - 1; i >= 0; i--) {
+        const d = new Date(year, month - 1, prevLastDay.getDate() - i);
+        days.push(buildDay(d, false, d.toISOString().slice(0, 10) === todayStr));
+      }
+
+      for (let i = 1; i <= lastDay.getDate(); i++) {
+        const d = new Date(year, month, i);
+        days.push(buildDay(d, true, d.toISOString().slice(0, 10) === todayStr));
+      }
+
+      const remaining = 42 - days.length;
+      for (let i = 1; i <= remaining; i++) {
+        const d = new Date(year, month + 1, i);
+        days.push(buildDay(d, false, d.toISOString().slice(0, 10) === todayStr));
+      }
+
+      return days;
+    });
+
+    function buildDay(date, isCurrentMonth, isToday) {
+      const dateStr = date.toISOString().slice(0, 10);
+      const workerIds = schedule.value[dateStr] || [];
+      const dayWorkers = workerIds.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
+      return { dateStr, dayNum: date.getDate(), isCurrentMonth, isToday, workers: dayWorkers };
+    }
+
+    // ===== METHODS =====
+    async function loadData() {
+      try {
+        const [w, s, a] = await Promise.all([
+          db.getFile('workers.json'),
+          db.getFile('schedule.json'),
+          db.getFile('admin.json')
+        ]);
+        workers.value = w || [];
+        schedule.value = s || {};
+        if (a) adminEmail.value = a.email || '';
+      } catch (e) {
+        console.error('Load error:', e);
+      }
+    }
+
+    async function loadUnavailability() {
+      try {
+        const data = await db.getFile('unavailability.json');
+        unavailability.value = data || {};
+      } catch {}
+    }
+
+    async function saveWorkers() {
+      try { await db.saveFile('workers.json', workers.value); showToast('Сохранено', 'success'); } 
+      catch { showToast('Ошибка сохранения', 'error'); }
+    }
+
+    async function saveSchedule() {
+      try { await db.saveFile('schedule.json', schedule.value); } 
+      catch { showToast('Ошибка сохранения', 'error'); }
+    }
+
+    async function saveAdminEmail() {
+      try {
+        await db.saveFile('admin.json', { email: adminEmail.value, password: await getAdminPassword(), phone: SUPER_ADMIN_PHONE });
+        showToast('Email сохранён', 'success');
+      } catch { showToast('Ошибка', 'error'); }
+    }
+
+    async function getAdminPassword() {
+      try {
+        const data = await db.getFile('admin.json');
+        return data?.password || '';
+      } catch { return ''; }
+    }
+
+    async function setAdminPassword(pass) {
+      try {
+        const data = await db.getFile('admin.json') || {};
+        await db.saveFile('admin.json', { ...data, password: pass, phone: SUPER_ADMIN_PHONE });
+      } catch { console.error('Set password error'); }
+    }
+
+    async function handleLogin() {
+      loginError.value = '';
+      const phone = formatPhone(loginPhone.value);
+      if (!phone) { loginError.value = 'Введите номер телефона'; return; }
+
+      loading.value = true;
+
+      try {
+        // Суперадмин
+        if (phone === SUPER_ADMIN_PHONE) {
+          const data = await db.getFile('admin.json');
+          if (!data || !data.password) {
+            if (!loginPass.value) {
+              loginError.value = 'Придумайте пароль для первого входа (минимум 4 символа)';
+              loading.value = false;
+              return;
+            }
+            if (loginPass.value.length < 4) {
+              loginError.value = 'Пароль должен быть минимум 4 символа';
+              loading.value = false;
+              return;
+            }
+            await db.saveFile('admin.json', { password: loginPass.value, phone: SUPER_ADMIN_PHONE, email: '' });
+            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+            localStorage.setItem('ws_session', JSON.stringify(user.value));
+            await loadData();
+            showToast('✅ Добро пожаловать! Пароль установлен.', 'success');
+          } else if (loginPass.value !== data.password) {
+            loginError.value = 'Неверный пароль';
+            loading.value = false;
+            return;
+          } else {
+            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+            localStorage.setItem('ws_session', JSON.stringify(user.value));
+            await loadData();
+            showToast('👋 С возвращением, администратор!', 'success');
+          }
+          loginPhone.value = ''; loginPass.value = '';
+          loading.value = false;
+          return;
+        }
+
+        // Обычный сотрудник
+        const worker = workers.value.find(w => w.phone === phone);
+        if (!worker) { loginError.value = 'Номер не найден. Обратитесь к администратору.'; loading.value = false; return; }
+        if (worker.isActive === false) { loginError.value = 'Аккаунт отключен администратором'; loading.value = false; return; }
+        
+        if (worker.deviceId && worker.deviceId !== getDeviceId()) {
+          loginError.value = 'Этот аккаунт уже используется на другом устройстве';
+          loading.value = false;
+          return;
+        }
+
+        if (!worker.deviceId) {
+          worker.deviceId = getDeviceId();
+          const idx = workers.value.findIndex(x => x.id === worker.id);
+          if (idx > -1) workers.value[idx] = worker;
+          await db.saveFile('workers.json', workers.value);
+        }
+
+        user.value = { id: worker.id, phone: worker.phone, role: worker.role || 'worker', name: worker.name };
+        localStorage.setItem('ws_session', JSON.stringify(user.value));
+        await loadData();
+        showToast(`👋 Здравствуйте, ${worker.name}!`, 'success');
+      } catch (e) {
+        loginError.value = 'Ошибка загрузки. Проверьте интернет.';
+      }
+      
+      loginPhone.value = ''; 
+      loginPass.value = '';
+      loading.value = false;
+    }
+
+    function logout() {
+      localStorage.removeItem('ws_session');
+      user.value = null;
+    }
+
+    function prevMonth() {
+      currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
+    }
+    
+    function nextMonth() {
+      currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
+    }
+    
+    function goToday() {
+      currentMonth.value = new Date();
+    }
+
+    function handleDayClick(day) {
+      if (!user.value) return;
+      
+      if (availabilityMode.value) {
+        toggleUnavailability(day.dateStr);
+        return;
+      }
+
+      if (user.value.role === 'admin' && day.isCurrentMonth) {
+        selectedScheduleDate.value = day.dateStr;
+        showScheduleModal.value = true;
+      }
+    }
+
+    function toggleUnavailability(dateStr) {
+      if (!user.value) return;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(dateStr); target.setHours(0,0,0,0);
+      if (target < today) { showToast('Нельзя изменить прошедший день', 'warning'); return; }
+
+      if (!unavailability.value[user.value.id]) unavailability.value[user.value.id] = [];
+      const arr = unavailability.value[user.value.id];
+      const idx = arr.indexOf(dateStr);
+      if (idx > -1) arr.splice(idx, 1);
+      else arr.push(dateStr);
+
+      db.saveFile('unavailability.json', unavailability.value).catch(console.error);
+      showToast(idx > -1 ? '✅ День доступен' : '❌ День отмечен как недоступный', 'warning');
+    }
+
+    function isDayUnavailable(dateStr) {
+      if (!user.value || !availabilityMode.value) return false;
+      const arr = unavailability.value[user.value.id];
+      return arr ? arr.includes(dateStr) : false;
+    }
+
+    function isWorkerUnavailable(workerId, dateStr) {
+      if (!availabilityMode.value) return false;
+      const arr = unavailability.value[workerId];
+      return arr ? arr.includes(dateStr) : false;
+    }
+
+    function toggleAvailabilityMode() {
+      availabilityMode.value = !availabilityMode.value;
+      if (availabilityMode.value) {
+        showToast('🟡 Режим отметок включён. Нажимайте на дни, когда не можете работать.', 'warning');
+      } else {
+        showToast('🟢 Режим отметок выключен', 'success');
+      }
+    }
+
+    function openAddWorkerModal() {
+      editingWorker.value = null;
+      workerForm.value = { name: '', phone: '' };
+      showWorkerModal.value = true;
+    }
+
+    function openEditWorkerModal(w) {
+      editingWorker.value = w;
+      workerForm.value = { name: w.name, phone: w.phone };
+      showWorkerModal.value = true;
+    }
+
+    async function saveWorker() {
+      const name = workerForm.value.name.trim();
+      const phone = formatPhone(workerForm.value.phone);
+      if (!name || !phone) { showToast('Заполните все поля', 'error'); return; }
+
+      if (editingWorker.value) {
+        const i = workers.value.findIndex(w => w.id === editingWorker.value.id);
+        if (i > -1) {
+          workers.value[i].name = name;
+          workers.value[i].phone = phone;
+        }
+      } else {
+        workers.value.push({
+          id: 'w_' + Date.now(),
+          name, phone,
+          role: 'worker',
+          isActive: true,
+          deviceId: null
+        });
+      }
+
+      await saveWorkers();
+      showWorkerModal.value = false;
+    }
+
+    async function toggleWorkerActive(w) {
+      w.isActive = !w.isActive;
+      await saveWorkers();
+    }
+
+    async function resetDevice(w) {
+      w.deviceId = null;
+      delete w.deviceId;
+      await saveWorkers();
+      workers.value = [...workers.value];
+      showToast('Устройство сброшено', 'success');
+    }
+
+    async function deleteWorker(w) {
+      if (!confirm(`Удалить сотрудника ${w.name}?`)) return;
+      workers.value = workers.value.filter(x => x.id !== w.id);
+      for (let date in schedule.value) {
+        schedule.value[date] = schedule.value[date].filter(id => id !== w.id);
+        if (schedule.value[date].length === 0) delete schedule.value[date];
+      }
+      await db.saveFile('workers.json', workers.value);
+      await db.saveFile('schedule.json', schedule.value);
+      showToast('Сотрудник удалён', 'success');
+    }
+
+    function openSetScheduleModal() {
+      selectedScheduleDate.value = new Date().toISOString().slice(0, 10);
+      showScheduleModal.value = true;
+    }
+
+    function isScheduled(workerId, dateStr) {
+      return (schedule.value[dateStr] || []).includes(workerId);
+    }
+
+    async function toggleSchedule(workerId, dateStr) {
+      if (!schedule.value[dateStr]) schedule.value[dateStr] = [];
+      const arr = schedule.value[dateStr];
+      const idx = arr.indexOf(workerId);
+      if (idx > -1) arr.splice(idx, 1);
+      else arr.push(workerId);
+      if (arr.length === 0) delete schedule.value[dateStr];
+      
+      schedule.value = { ...schedule.value };
+      await saveSchedule();
+    }
+
+    function callWorker(worker) {
+      if (worker.phone) {
+        window.location.href = 'tel:' + worker.phone;
+      }
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    function toggleTheme() {
+      isDark.value = !isDark.value;
+      localStorage.setItem('ws_theme', isDark.value ? 'dark' : 'light');
+      document.body.className = isDark.value ? 'dark' : 'light';
+    }
+
+    function openSettings() {
+      showSettings.value = true;
+    }
+
+    function showToast(msg, type = '') {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      if (toastTimer) clearTimeout(toastTimer);
+      el.textContent = msg;
+      el.className = 'toast ' + type;
+      el.style.display = 'block';
+      toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+    }
+
+    // ===== INIT =====
+    onMounted(async () => {
+      document.body.className = isDark.value ? 'dark' : 'light';
+      
+      await loadData();
+      await loadUnavailability();
+      
+      // Автологин
+      const saved = localStorage.getItem('ws_session');
+      if (saved) {
+        try {
+          const sess = JSON.parse(saved);
+          if (sess.id === 'admin') {
+            const data = await db.getFile('admin.json');
+            if (data?.phone === SUPER_ADMIN_PHONE) {
+              user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
+              adminEmail.value = data.email || '';
+            } else {
+              localStorage.removeItem('ws_session');
+            }
+          } else {
+            const w = workers.value.find(x => x.id === sess.id);
+            if (w && w.isActive !== false) {
+              if (w.deviceId && w.deviceId !== getDeviceId()) {
+                localStorage.removeItem('ws_session');
+              } else {
+                user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
+              }
+            } else {
+              localStorage.removeItem('ws_session');
+            }
+          }
+        } catch { localStorage.removeItem('ws_session'); }
+      }
+    });
+
+    return {
+      user, loginPhone, loginPass, loginError, loading, needAdminPassword,
+      workers, schedule, unavailability, adminEmail,
+      currentMonth, currentMonthTitle, calendarDays,
+      availabilityMode,
+      showSettings, showWorkerModal, showScheduleModal,
+      editingWorker, workerForm,
+      selectedScheduleDate,
+      isDark,
+      handleLogin, logout,
+      prevMonth, nextMonth, goToday,
+      handleDayClick, toggleUnavailability,
+      isDayUnavailable, isWorkerUnavailable,
+      toggleAvailabilityMode,
+      openAddWorkerModal, openEditWorkerModal, saveWorker,
+      toggleWorkerActive, resetDevice, deleteWorker,
+      openSetScheduleModal, isScheduled, toggleSchedule,
+      callWorker, formatDate,
+      saveAdminEmail, openSettings,
+      toggleTheme, showToast
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
