@@ -37,7 +37,7 @@
       --today-bg: rgba(37, 99, 235, 0.15);
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body { height: 100%; overflow: hidden; }
 
@@ -46,6 +46,7 @@
       background: var(--bg);
       color: var(--text);
       transition: background 0.3s, color 0.3s;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .app-header {
@@ -62,7 +63,6 @@
 
     .header-left { display: flex; align-items: center; gap: 8px; }
     .header-center { flex: 1; text-align: center; font-weight: 600; font-size: 15px; }
-    .header-center span { opacity: 0.7; }
     .header-right { display: flex; align-items: center; gap: 6px; }
 
     .icon-btn {
@@ -84,28 +84,15 @@
       font-weight: 600;
     }
 
-    .wrapper {
-      max-width: 420px;
-      margin: 0 auto;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding-bottom: 64px;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-
     .container {
       display: flex; flex-direction: column;
       height: 100vh;
       padding-top: var(--header-h);
     }
 
-    .calendar-wrapper {
-      flex: 1;
+    .calendar-section {
+      flex-shrink: 0;
       overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
 
     .calendar-header {
@@ -124,18 +111,14 @@
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      flex: 1;
       gap: 1px;
       background: var(--border);
       padding: 1px;
-      overflow: hidden;
     }
 
     .day-cell {
       background: var(--card);
-      min-height: 77px;
-      height: auto;
-      max-height: 168px;
+      aspect-ratio: 1 / 1;
       padding: 3px;
       cursor: pointer;
       display: flex;
@@ -146,28 +129,19 @@
     }
     .day-cell:active { background: var(--border); }
     .day-cell.other-month { opacity: 0.4; }
-    .day-cell.today { background: var(--today-bg); }
-
-    .day-cell-frame {
-      min-height: 75px;
-      height: auto;
-      max-height: 166px;
-      overflow: hidden;
-      background: transparent;
-      position: relative;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    .day-cell.today { 
+      background: var(--today-bg) !important;
+      box-shadow: inset 0 0 0 1px var(--primary);
     }
 
     .day-number {
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
       text-align: right;
-      padding: 2px 4px;
+      padding: 1px 3px;
       z-index: 2;
       color: var(--text);
-      position: relative;
+      flex-shrink: 0;
     }
 
     .day-workers {
@@ -176,38 +150,58 @@
       display: flex;
       flex-direction: column;
       gap: 1px;
-      padding: 1px 0;
+      min-height: 0;
     }
 
     .worker-chip {
       background: var(--primary);
       color: white;
-      font-size: 11px;
-      padding: 1px 4px;
+      font-size: 10px;
+      padding: 1px 3px;
       border-radius: 3px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
-      transition: transform 0.15s;
-      line-height: 1.2;
-      max-height: 16px;
-      min-height: 16px;
-      margin: 1px 2px;
-    }
-    .worker-chip:active { transform: scale(0.96); }
-    .worker-chip.unavailable {
-      background: var(--danger);
-      opacity: 0.85;
+      line-height: 1.3;
+      flex-shrink: 0;
     }
 
     .unavailable-dot {
-      width: 6px; height: 6px;
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 7px; height: 7px;
       background: var(--danger);
       border-radius: 50%;
-      position: absolute;
-      top: 3px; left: 3px;
-      z-index: 1;
+      z-index: 3;
+      border: 1px solid var(--card);
+    }
+    .unavailable-dot.admin-can-clear {
+      cursor: pointer;
+      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.4);
+    }
+
+    .legend-section {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      background: var(--bg);
+    }
+
+    .legend-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .legend-item:last-child { border-bottom: none; }
+    .legend-name { font-weight: 500; }
+    .legend-count {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 14px;
     }
 
     /* Нижняя панель */
@@ -225,7 +219,6 @@
       box-sizing: border-box;
       width: 100%;
       padding-bottom: max(16px, env(safe-area-inset-bottom));
-      gap: 12px;
     }
     body.light .bottom-bar { background: #e5e7eb; }
 
@@ -239,6 +232,7 @@
       font-weight: 600;
       cursor: pointer;
       font-family: inherit;
+      margin: 0 6px;
     }
     .nav-btn:active { transform: scale(0.96); }
 
@@ -249,8 +243,6 @@
       text-align: center;
       color: var(--text);
     }
-
-    body.light .month-title { color: #020617; }
 
     /* Toast */
     .toast {
@@ -293,6 +285,14 @@
     }
     body.light .sheet-content { background: #ffffff; }
 
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .settings-header h3 { margin: 0; }
+
     .modal-overlay {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.7);
@@ -324,10 +324,6 @@
       margin-bottom: 8px;
       box-sizing: border-box;
     }
-    body.light input, body.light select, body.light textarea {
-      background: #ffffff;
-      border-color: #cbd5e1;
-    }
 
     input:focus, select:focus { outline: none; border-color: var(--primary); }
     input::placeholder, textarea::placeholder { color: #64748b; }
@@ -346,21 +342,22 @@
     .btn-secondary { background: #64748b; color: white; }
     .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
 
-    .flex-row { display: flex; gap: 8px; }
+    .flex-row { display: flex; gap: 8px; align-items: center; }
     .flex-row .btn { flex: 1; }
 
     .worker-row {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 0; border-bottom: 1px solid var(--border); gap: 8px;
+      padding: 8px 0; border-bottom: 1px solid var(--border); gap: 8px;
     }
     .worker-row:last-child { border-bottom: none; }
     .worker-info { flex: 1; min-width: 0; }
     .worker-name { font-weight: 600; font-size: 14px; }
     .worker-meta { font-size: 11px; color: var(--text-muted); }
-    .worker-actions { display: flex; gap: 4px; }
+    .worker-actions { display: flex; align-items: center; gap: 6px; }
 
     .switch {
       position: relative; display: inline-block; width: 40px; height: 22px;
+      flex-shrink: 0;
     }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider {
@@ -387,8 +384,10 @@
     ::-webkit-scrollbar-track { background: #1f2937; }
     ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
 
-    @media (max-width: 480px) {
-      .day-cell { min-height: 70px; }
+    @media (max-width: 400px) {
+      .day-cell { padding: 2px; }
+      .day-number { font-size: 10px; }
+      .worker-chip { font-size: 9px; }
     }
 
     [v-cloak] { display: none; }
@@ -404,20 +403,10 @@
       <span v-if="user && user.role === 'admin'" class="role-badge">👑 Админ</span>
     </div>
     <div class="header-center" v-if="user">
-      📅 График на <span>{{ currentMonthTitle }}</span>
+      {{ currentMonthTitle }}
     </div>
     <div class="header-right">
-      <button v-if="user && user.role === 'admin'" class="icon-btn" 
-              :style="{color: availabilityMode ? 'var(--warning)' : ''}" 
-              @click="toggleAvailabilityMode" 
-              :title="availabilityMode ? 'Режим отметок ВКЛ' : 'Включить режим отметок'">
-        {{ availabilityMode ? '🔴' : '🟢' }}
-      </button>
-      <button class="icon-btn" @click="toggleTheme" :title="isDark ? 'Светлая тема' : 'Тёмная тема'">
-        {{ isDark ? '☀️' : '🌙' }}
-      </button>
       <button v-if="user && user.role === 'admin'" class="icon-btn" @click="openSettings" title="Настройки">⚙️</button>
-      <button v-if="user && user.role === 'admin'" class="icon-btn" @click="logout" title="Выход">🚪</button>
     </div>
   </div>
 
@@ -431,10 +420,9 @@
                style="margin-bottom:12px;">
         <input v-if="needAdminPassword" type="password" v-model="loginPass" 
                @keyup.enter="handleLogin" placeholder="Пароль администратора" style="margin-bottom:12px;">
-              <!-- ДОБАВЬ ЭТОТ БЛОК -->
-              <div v-if="showResetPasswordOption" style="text-align:center;margin-bottom:8px;">
-              <button @click="resetAdminPassword" 
-              style="background:none;border:none;color:var(--primary);font-size:12px;cursor:pointer;text-decoration:underline;">
+        <div v-if="showResetPasswordOption" style="text-align:center;margin-bottom:8px;">
+          <button @click="resetAdminPassword" 
+                  style="background:none;border:none;color:var(--primary);font-size:12px;cursor:pointer;text-decoration:underline;">
             🔄 Забыли пароль? Восстановить
           </button>
         </div>
@@ -444,57 +432,76 @@
     </div>
 
     <!-- Main Content -->
-    <div v-else class="calendar-wrapper" 
-         @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <!-- Calendar Header -->
-      <div class="calendar-header">
-        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
-      </div>
-
-      <!-- Calendar Grid -->
-      <div class="calendar-grid">
-        <div v-for="day in calendarDays" :key="day.dateStr"
-             :class="['day-cell', 
-                      { 'other-month': !day.isCurrentMonth, 
-                        'today': day.isToday }]"
-             @click="handleDayClick(day)">
-          <div class="day-number">{{ day.dayNum }}</div>
-          <div v-if="availabilityMode && user" 
-               class="unavailable-dot" 
-               v-show="isDayUnavailable(day.dateStr)"></div>
-          <div class="day-workers">
-            <div v-for="w in day.workers" :key="w.id"
-                 :class="['worker-chip', { 'unavailable': isWorkerUnavailable(w.id, day.dateStr) }]"
-                 @click.stop="callWorker(w)">
-              {{ w.name }}
+    <template v-else>
+      <!-- Calendar Section -->
+      <div class="calendar-section" 
+           @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+        <div class="calendar-header">
+          <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+        </div>
+        <div class="calendar-grid">
+          <div v-for="day in calendarDays" :key="day.dateStr"
+               :class="['day-cell', 
+                        { 'other-month': !day.isCurrentMonth, 
+                          'today': day.isToday }]"
+               @click="handleDayClick(day)">
+            <div class="day-number">{{ day.dayNum }}</div>
+            <div v-for="uid in getDayUnavailable(day.dateStr)" :key="uid"
+                 :class="['unavailable-dot', { 'admin-can-clear': user.role === 'admin' }]"
+                 :style="{ background: getWorkerColor(uid), top: (getUnavailableIndex(day.dateStr, uid) * 8 + 2) + 'px' }"
+                 :title="getWorkerName(uid) + ' — недоступен'"
+                 @click.stop="user.role === 'admin' && clearUnavailability(uid, day.dateStr)">
+            </div>
+            <div class="day-workers">
+              <div v-for="w in day.workers" :key="w.id"
+                   class="worker-chip"
+                   :style="{ background: getWorkerColor(w.id) }"
+                   @click.stop="callWorker(w)">
+                {{ w.name.split(' ')[0] }}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- Legend -->
+      <div class="legend-section">
+        <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
+          <span class="legend-name">
+            <span :style="{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: stat.color, marginRight: '6px' }"></span>
+            {{ stat.name }}
+          </span>
+          <span class="legend-count">{{ stat.shifts }} смен{{ getShiftEnding(stat.shifts) }}</span>
+        </div>
+        <div v-if="workerStats.length === 0" class="empty-state">Нет сотрудников в этом месяце</div>
+      </div>
+    </template>
   </div>
 
   <!-- Footer Navigation -->
-  <div class="bottom-bar" v-if="user && user.role === 'admin'">
-    <button class="btn btn-primary btn-sm" @click="openAddWorkerModal">+ Сотрудник</button>
-    <button class="btn btn-sm btn-secondary" @click="openSetScheduleModal">📝 График</button>
-    <button class="btn btn-sm" :class="availabilityMode ? 'btn-primary' : 'btn-secondary'" 
-            @click="toggleAvailabilityMode">
-      {{ availabilityMode ? '🔴 Режим' : '🟢 Отметки' }}
-    </button>
-  </div>
-  <div class="bottom-bar" v-else-if="user">
+  <div class="bottom-bar" v-if="user">
     <button class="nav-btn" @click="prevMonth">←</button>
     <span class="month-title">{{ currentMonthTitle }}</span>
     <button class="nav-btn" @click="nextMonth">→</button>
+    <button v-if="user.role === 'admin'" class="nav-btn" 
+            :style="{ background: availabilityMode ? 'var(--danger)' : 'var(--primary)' }"
+            @click="toggleAvailabilityMode">
+      {{ availabilityMode ? '🔴' : '🟢' }}
+    </button>
   </div>
 
   <!-- Settings Sheet -->
   <div :class="['sheet', { active: showSettings }]" @click.self="showSettings = false">
     <div class="sheet-content">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <h3 style="margin:0;">⚙️ Администрирование</h3>
-        <button class="icon-btn" @click="showSettings = false" style="font-size:18px;">✕</button>
+      <div class="settings-header">
+        <h3>⚙️ Администрирование</h3>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="icon-btn" @click="toggleTheme" :title="isDark ? 'Светлая тема' : 'Тёмная тема'">
+            {{ isDark ? '☀️' : '🌙' }}
+          </button>
+          <button class="icon-btn" @click="logout" title="Выход">🚪</button>
+          <button class="icon-btn" @click="showSettings = false" style="font-size:18px;">✕</button>
+        </div>
       </div>
 
       <div style="margin-bottom:16px;">
@@ -505,26 +512,37 @@
         </div>
       </div>
 
-      <div style="margin-bottom:12px;font-weight:600;font-size:14px;">👥 Сотрудники</div>
+      <div class="flex-row" style="margin-bottom:16px;justify-content:space-between;">
+        <span style="font-weight:600;font-size:14px;">👥 Сотрудники</span>
+        <button class="btn btn-primary btn-sm" @click="openAddWorkerModal">+ Добавить</button>
+      </div>
+      
       <div v-if="workers.length === 0" class="empty-state">Нет сотрудников</div>
       <div v-for="w in workers" :key="w.id" class="worker-row">
         <div class="worker-info">
           <div class="worker-name">{{ w.name }}</div>
           <div class="worker-meta">
             {{ w.phone }}
-            <span v-if="w.deviceId" style="color:var(--text-muted);"> · 📱 привязан</span>
+            <span v-if="w.deviceId" style="color:var(--text-muted);"> · 📱</span>
             <span v-if="!w.isActive" style="color:var(--danger);"> · неактивен</span>
           </div>
         </div>
         <div class="worker-actions">
-          <label class="switch">
-            <input type="checkbox" :checked="w.isActive !== false" @change="toggleWorkerActive(w)">
-            <span class="slider"></span>
-          </label>
           <button class="icon-btn" @click="openEditWorkerModal(w)">✏️</button>
           <button v-if="w.deviceId" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство">📱</button>
           <button class="icon-btn" @click="deleteWorker(w)" style="color:var(--danger);">🗑️</button>
+          <label class="switch" style="margin-left:2px;">
+            <input type="checkbox" :checked="w.isActive !== false" @change="toggleWorkerActive(w)">
+            <span class="slider"></span>
+          </label>
         </div>
+      </div>
+
+      <!-- Кнопка снятия всех отметок -->
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+        <button class="btn btn-danger btn-sm" @click="clearAllUnavailability" style="width:100%;">
+          🗑️ Снять все отметки недоступности
+        </button>
       </div>
     </div>
   </div>
@@ -547,9 +565,6 @@
     <div class="modal" style="max-height:80vh;overflow-y:auto;">
       <div class="modal-title">📝 Редактировать график</div>
       <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
-      <div v-if="selectedScheduleDate" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
-        Сотрудники на {{ formatDate(selectedScheduleDate) }}:
-      </div>
       <div v-if="selectedScheduleDate" v-for="w in workers" :key="w.id" 
            style="display:flex;align-items:center;gap:8px;padding:6px 0;">
         <input type="checkbox" :checked="isScheduled(w.id, selectedScheduleDate)" 
@@ -566,7 +581,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script>
-// ===== GITHUB CONFIG =====
+// ========== GITHUB CONFIG ==========
 const _e = [42,17,35,60,88,43,92,16,93,13,38,9,19,11,9,71,102,0,107,98,11,50,41,81,31,19,39,44,27,84,54,20,40,36,87,48,106,86,124,100];
 const _k = "MyScheduleSecret2026";
 const GITHUB_TOKEN = _e.map((b,i) => String.fromCharCode(b ^ _k.charCodeAt(i % _k.length))).join('');
@@ -575,7 +590,9 @@ const REPO_OWNER = 'spoiler038';
 const REPO_NAME = 'WorkSchedule';
 const BRANCH = 'main';
 const SUPER_ADMIN_PHONE = '79778700833';
-const DATA_FILES = ['workers.json', 'schedule.json', 'admin.json', 'unavailability.json'];
+
+// Цвета для сотрудников
+const WORKER_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#ca8a04'];
 
 function formatPhone(phone) {
   let c = String(phone || '').replace(/[^\d]/g, '');
@@ -616,10 +633,7 @@ class GitHubDB {
     try {
       let sha = null;
       const getR = await fetch(`${this.baseUrl}/${filename}`, { headers: this.headers });
-      if (getR.status === 200) {
-        const info = await getR.json();
-        sha = info.sha;
-      }
+      if (getR.status === 200) { const info = await getR.json(); sha = info.sha; }
       const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
       const body = { message: `Update ${filename}`, content, branch: BRANCH };
       if (sha) body.sha = sha;
@@ -632,12 +646,13 @@ class GitHubDB {
   }
 
   async ensureFilesExist() {
-    for (const file of DATA_FILES) {
+    const files = ['workers.json', 'schedule.json', 'admin.json', 'unavailability.json'];
+    for (const file of files) {
       const exists = await this.getFile(file);
       if (!exists) {
-        const emptyData = file === 'admin.json' ? { password: '', phone: SUPER_ADMIN_PHONE, email: '' } : 
-                         file === 'workers.json' ? [] : {};
-        await this.saveFile(file, emptyData);
+        const empty = file === 'admin.json' ? { password: '', phone: SUPER_ADMIN_PHONE, email: '' } : 
+                     file === 'workers.json' ? [] : {};
+        await this.saveFile(file, empty);
       }
     }
   }
@@ -673,11 +688,24 @@ createApp({
     
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
-
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
-    const currentMonthTitle = computed(() => currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' }));
+    
+    const currentMonthTitle = computed(() => {
+      const d = currentMonth.value;
+      return d.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
+    });
+
+    function getWorkerColor(workerId) {
+      const idx = workers.value.findIndex(w => w.id === workerId);
+      return WORKER_COLORS[idx % WORKER_COLORS.length];
+    }
+
+    function getWorkerName(workerId) {
+      const w = workers.value.find(x => x.id === workerId);
+      return w ? w.name : '';
+    }
 
     const calendarDays = computed(() => {
       const year = currentMonth.value.getFullYear();
@@ -717,6 +745,69 @@ createApp({
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
     }
 
+    // Статистика смен
+    const workerStats = computed(() => {
+      const year = currentMonth.value.getFullYear();
+      const month = currentMonth.value.getMonth();
+      const stats = {};
+      
+      for (let d = 1; d <= 31; d++) {
+        const date = new Date(year, month, d);
+        if (date.getMonth() !== month) continue;
+        const ds = date.toISOString().slice(0, 10);
+        const ids = schedule.value[ds] || [];
+        for (const id of ids) {
+          if (!stats[id]) stats[id] = 0;
+          stats[id]++;
+        }
+      }
+      
+      return workers.value
+        .filter(w => stats[w.id])
+        .map(w => ({
+          id: w.id,
+          name: w.name,
+          shifts: stats[w.id],
+          color: getWorkerColor(w.id)
+        }))
+        .sort((a, b) => b.shifts - a.shifts);
+    });
+
+    function getShiftEnding(n) {
+      if (n % 10 === 1 && n % 100 !== 11) return 'а';
+      if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'ы';
+      return '';
+    }
+
+    function getDayUnavailable(dateStr) {
+      const result = [];
+      for (const [workerId, dates] of Object.entries(unavailability.value)) {
+        if (dates.includes(dateStr)) result.push(workerId);
+      }
+      return result;
+    }
+
+    function getUnavailableIndex(dateStr, workerId) {
+      return getDayUnavailable(dateStr).indexOf(workerId);
+    }
+
+    async function clearUnavailability(workerId, dateStr) {
+      if (!unavailability.value[workerId]) return;
+      const arr = unavailability.value[workerId];
+      const idx = arr.indexOf(dateStr);
+      if (idx > -1) arr.splice(idx, 1);
+      if (!arr.length) delete unavailability.value[workerId];
+      await db.saveFile('unavailability.json', unavailability.value);
+      showToast('✅ Отметка снята', 'success');
+    }
+
+    async function clearAllUnavailability() {
+      if (!confirm('Снять ВСЕ отметки недоступности для всех сотрудников?')) return;
+      unavailability.value = {};
+      await db.saveFile('unavailability.json', unavailability.value);
+      showToast('🗑️ Все отметки сняты', 'success');
+    }
+
     async function loadData() {
       try {
         const [w, s, a, u] = await Promise.all([
@@ -729,136 +820,73 @@ createApp({
       } catch(e) { console.error(e); }
     }
 
-   async function handleLogin() {
-  loginError.value = '';
-  const phone = formatPhone(loginPhone.value);
-  if (!phone) { loginError.value = 'Введите номер телефона'; return; }
-  
-  loading.value = true;
-
-  try {
-    // ===== АДМИН =====
-    if (phone === SUPER_ADMIN_PHONE) {
-      const data = await db.getFile('admin.json');
-      
-      // Проверка на восстановление пароля
-      if (loginPass.value === 'RESET_PASSWORD') {
-        if (!data?.email) {
-          loginError.value = '❌ Не указан email для восстановления. Обратитесь в поддержку.';
-          loading.value = false;
-          return;
-        }
-        // Генерируем новый пароль
-        const newPassword = Math.random().toString(36).slice(-6);
-        await db.saveFile('admin.json', { 
-          ...data, 
-          password: newPassword,
-          email: data.email,
-          phone: SUPER_ADMIN_PHONE 
-        });
-        
-        // Отправляем email через GitHub API (или показываем пароль)
-        loginError.value = '';
-        showToast('🔑 Новый пароль отправлен на email: ' + data.email.replace(/(.{3}).*(@.*)/, '$1***$2'), 'success');
-        
-        // Для отладки — показываем пароль в консоли (уберешь в production)
-        console.log('🔑 Новый пароль администратора:', newPassword);
-        
-        // Если нет email — показываем пароль на экране
-        if (!data.email || data.email === '') {
-          showToast('🔑 Ваш новый пароль: ' + newPassword + ' (сохраните его!)', 'warning');
-        }
-        
-        loading.value = false;
-        return;
-      }
-      
-      // Обычный вход
-      if (!data?.password) {
-        // Первый вход
-        if (!loginPass.value || loginPass.value.length < 4) {
-          loginError.value = 'Придумайте пароль (минимум 4 символа)';
-          loading.value = false;
-          return;
-        }
-        await db.saveFile('admin.json', { 
-          password: loginPass.value, 
-          phone: SUPER_ADMIN_PHONE, 
-          email: data?.email || '' 
-        });
-        user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
-        localStorage.setItem('ws_session', JSON.stringify(user.value));
-        await loadData();
-        showToast('✅ Добро пожаловать! Пароль установлен.', 'success');
-      } else if (loginPass.value !== data.password) {
-        // Неверный пароль — считаем попытки
-        let attempts = parseInt(localStorage.getItem('ws_admin_attempts') || '0');
-        attempts++;
-        localStorage.setItem('ws_admin_attempts', attempts.toString());
-        
-        const remaining = 3 - attempts;
-        if (remaining > 0) {
-          loginError.value = `❌ Неверный пароль. Осталось попыток: ${remaining}`;
+    async function handleLogin() {
+      loginError.value = '';
+      const phone = formatPhone(loginPhone.value);
+      if (!phone) { loginError.value = 'Введите номер телефона'; return; }
+      loading.value = true;
+      try {
+        if (phone === SUPER_ADMIN_PHONE) {
+          const data = await db.getFile('admin.json');
+          if (loginPass.value === 'RESET_PASSWORD') {
+            if (!data?.email) { loginError.value = '❌ Не указан email'; loading.value = false; return; }
+            const newPassword = Math.random().toString(36).slice(-6);
+            await db.saveFile('admin.json', { ...data, password: newPassword });
+            showToast('🔑 Новый пароль: ' + newPassword, 'warning');
+            loading.value = false; return;
+          }
+          if (!data?.password) {
+            if (!loginPass.value || loginPass.value.length < 4) {
+              loginError.value = 'Придумайте пароль (мин. 4 символа)'; loading.value = false; return;
+            }
+            await db.saveFile('admin.json', { password: loginPass.value, phone, email: data?.email || '' });
+            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+            localStorage.setItem('ws_session', JSON.stringify(user.value));
+            await loadData(); showToast('✅ Пароль установлен!', 'success');
+          } else if (loginPass.value !== data.password) {
+            let attempts = parseInt(localStorage.getItem('ws_admin_attempts') || '0');
+            attempts++; localStorage.setItem('ws_admin_attempts', attempts.toString());
+            const remaining = 3 - attempts;
+            if (remaining > 0) { loginError.value = `❌ Неверный пароль. Осталось: ${remaining}`; }
+            else {
+              loginError.value = '🔒 Превышено попыток!';
+              showResetPasswordOption.value = true;
+              localStorage.setItem('ws_admin_attempts', '0');
+            }
+            loading.value = false; return;
+          } else {
+            localStorage.setItem('ws_admin_attempts', '0');
+            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+            localStorage.setItem('ws_session', JSON.stringify(user.value));
+            await loadData(); showToast('👋 С возвращением!', 'success');
+          }
         } else {
-          // 3 попытки исчерпаны — предлагаем восстановить
-          loginError.value = '🔒 Превышено количество попыток!';
-          showToast('💡 Введите email для восстановления или используйте кнопку "Забыли пароль"', 'warning');
-          
-          // Показываем кнопку восстановления
-          showResetPasswordOption.value = true;
-          localStorage.setItem('ws_admin_attempts', '0');
+          const w = workers.value.find(x => x.phone === phone);
+          if (!w) { loginError.value = 'Номер не найден'; loading.value = false; return; }
+          if (!w.isActive) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
+          if (w.deviceId && w.deviceId !== getDeviceId()) {
+            loginError.value = 'Другое устройство'; loading.value = false; return;
+          }
+          if (!w.deviceId) { w.deviceId = getDeviceId(); await db.saveFile('workers.json', workers.value); }
+          user.value = { id: w.id, phone, role: w.role || 'worker', name: w.name };
+          localStorage.setItem('ws_session', JSON.stringify(user.value));
+          await loadData(); showToast(`👋 Здравствуйте, ${w.name}!`, 'success');
         }
-        loading.value = false;
-        return;
-      } else {
-        // Верный пароль
-        localStorage.setItem('ws_admin_attempts', '0');
-        user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
-        localStorage.setItem('ws_session', JSON.stringify(user.value));
-        await loadData();
-        showToast('👋 С возвращением!', 'success');
-      }
-    } else {
-      // ===== СОТРУДНИК =====
-      const w = workers.value.find(x => x.phone === phone);
-      if (!w) { loginError.value = 'Номер не найден'; loading.value = false; return; }
-      if (!w.isActive) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
-      if (w.deviceId && w.deviceId !== getDeviceId()) {
-        loginError.value = 'Аккаунт привязан к другому устройству';
-        loading.value = false;
-        return;
-      }
-      if (!w.deviceId) {
-        w.deviceId = getDeviceId();
-        await db.saveFile('workers.json', workers.value);
-      }
-      user.value = { id: w.id, phone, role: w.role || 'worker', name: w.name };
-      localStorage.setItem('ws_session', JSON.stringify(user.value));
-      await loadData();
-      showToast(`👋 Здравствуйте, ${w.name}!`, 'success');
+        loginPhone.value = ''; loginPass.value = '';
+      } catch(e) { loginError.value = 'Ошибка сети'; }
+      loading.value = false;
     }
-    
-    loginPhone.value = ''; 
-    loginPass.value = '';
-  } catch (e) {
-    loginError.value = 'Ошибка сети. Проверьте интернет.';
-  }
-  loading.value = false;
-}
 
     async function resetAdminPassword() {
-  const email = prompt('Введите email администратора для восстановления пароля:');
-  if (!email) return;
-  
-  const data = await db.getFile('admin.json');
-  if (data?.email === email) {
-    loginPass.value = 'RESET_PASSWORD';
-    await handleLogin();
-    showResetPasswordOption.value = false;
-  } else {
-    showToast('❌ Email не совпадает с указанным в настройках', 'error');
-  }
-}
+      const email = prompt('Введите email администратора:');
+      if (!email) return;
+      const data = await db.getFile('admin.json');
+      if (data?.email === email) {
+        loginPass.value = 'RESET_PASSWORD';
+        await handleLogin();
+        showResetPasswordOption.value = false;
+      } else { showToast('❌ Email не совпадает', 'error'); }
+    }
 
     function logout() { localStorage.removeItem('ws_session'); user.value = null; }
     function prevMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1); }
@@ -878,7 +906,10 @@ createApp({
 
     function handleDayClick(day) {
       if (!user.value) return;
-      if (availabilityMode.value) { toggleUnavailability(day.dateStr); return; }
+      if (availabilityMode.value) {
+        toggleUnavailability(day.dateStr);
+        return;
+      }
       if (user.value.role === 'admin' && day.isCurrentMonth) {
         selectedScheduleDate.value = day.dateStr;
         showScheduleModal.value = true;
@@ -897,8 +928,6 @@ createApp({
       showToast(idx > -1 ? '✅ День доступен' : '❌ День недоступен', 'warning');
     }
 
-    function isDayUnavailable(d) { return availabilityMode.value && (unavailability.value[user.value?.id] || []).includes(d); }
-    function isWorkerUnavailable(wid, d) { return availabilityMode.value && (unavailability.value[wid] || []).includes(d); }
     function toggleAvailabilityMode() {
       availabilityMode.value = !availabilityMode.value;
       showToast(availabilityMode.value ? '🟡 Отметки включены' : '🟢 Отметки выключены', 'warning');
@@ -949,7 +978,6 @@ createApp({
     }
 
     function callWorker(w) { if (w.phone) window.location.href = 'tel:' + w.phone; }
-    function formatDate(d) { if (!d) return ''; const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; }
 
     function toggleTheme() {
       isDark.value = !isDark.value;
@@ -967,14 +995,14 @@ createApp({
     }
 
     function showToast(msg, type = '') {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  if (toastTimer) clearTimeout(toastTimer); // убрал ||, оставил только очистку
-  el.textContent = msg;
-  el.className = 'toast ' + type;
-  el.style.display = 'block';
-  toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
-}
+      const el = document.getElementById('toast');
+      if (!el) return;
+      if (toastTimer) clearTimeout(toastTimer);
+      el.textContent = msg;
+      el.className = 'toast ' + type;
+      el.style.display = 'block';
+      toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
+    }
 
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
@@ -1001,23 +1029,25 @@ createApp({
     });
 
     return {
-      user, loginPhone, loginPass, loginError, showResetPasswordOption,
-      resetAdminPassword, loading, needAdminPassword,
+      user, loginPhone, loginPass, loginError, loading, needAdminPassword,
       workers, schedule, unavailability, adminEmail,
       currentMonth, currentMonthTitle, calendarDays,
       availabilityMode,
       showSettings, showWorkerModal, showScheduleModal,
       editingWorker, workerForm, selectedScheduleDate,
-      isDark,
-      handleLogin, logout, prevMonth, nextMonth, goToday,
+      isDark, showResetPasswordOption,
+      handleLogin, resetAdminPassword, logout, prevMonth, nextMonth, goToday,
       onTouchStart, onTouchMove, onTouchEnd,
-      handleDayClick, toggleUnavailability, isDayUnavailable, isWorkerUnavailable,
+      handleDayClick, toggleUnavailability,
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
       openSetScheduleModal, isScheduled, toggleSchedule,
-      callWorker, formatDate,
-      saveAdminEmail, openSettings, toggleTheme, showToast
+      callWorker,
+      saveAdminEmail, openSettings, toggleTheme, showToast,
+      getWorkerColor, getWorkerName, getDayUnavailable,
+      getUnavailableIndex, clearUnavailability, clearAllUnavailability,
+      workerStats, getShiftEnding
     };
   }
 }).mount('#app');
