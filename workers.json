@@ -4,7 +4,7 @@
     "name": "Маргарита",
     "phone": "79991627484",
     "role": "worker",
-    "isActive": true,
+    "isActive": false,
     "deviceId": null
   }
 ]
