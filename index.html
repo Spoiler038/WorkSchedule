@@ -13,6 +13,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192x192.png">
   
   <style>
+    /* ===== СТИЛИ ИЗ GRAFIC.HTML ===== */
     :root {
       --bg: #0f172a;
       --card: #1e293b;
@@ -140,6 +141,7 @@
       text-align: right;
       margin-bottom: 1px;
       z-index: 2;
+      color: var(--text);
     }
 
     .day-workers {
@@ -181,10 +183,14 @@
 
     .bottom-bar {
       display: flex; justify-content: center; align-items: center;
-      padding: 8px; gap: 12px;
-      background: var(--card);
-      border-top: 1px solid var(--border);
+      padding: 8px 8px 16px 8px;
+      background: #020617;
+      border-top: 1px solid #1e293b;
+      height: 64px;
+      box-sizing: border-box;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
     }
+    body.light .bottom-bar { background: #e5e7eb; }
 
     .nav-btn {
       background: var(--primary);
@@ -246,13 +252,13 @@
 
     .modal {
       background: var(--card);
-      border-radius: 16px;
-      padding: 20px;
-      max-width: 360px; width: 100%;
+      border-radius: 20px;
+      padding: 24px;
+      max-width: 320px; width: 100%;
       border: 1px solid var(--border);
     }
-    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
-    .modal-text { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+    .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+    .modal-text { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
 
     input, select, textarea {
       width: 100%; padding: 10px 12px;
@@ -267,16 +273,16 @@
     input:focus, select:focus { outline: none; border-color: var(--primary); }
 
     .btn {
-      padding: 10px 16px; border-radius: 10px;
+      padding: 12px 16px; border-radius: 12px;
       border: none; font-family: inherit;
-      font-size: 13px; font-weight: 600;
+      font-size: 13px; font-weight: 500;
       cursor: pointer; width: 100%;
       transition: all 0.15s;
     }
     .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--primary); color: white; }
     .btn-danger { background: var(--danger); color: white; }
-    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary { background: #64748b; color: white; }
     .btn-sm { padding: 6px 12px; font-size: 12px; width: auto; }
 
     .flex-row { display: flex; gap: 8px; }
@@ -315,6 +321,11 @@
       padding: 30px; font-size: 13px;
     }
 
+    * { scrollbar-width: thin; scrollbar-color: #4b5563 #1f2937; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+
     @media (min-width: 768px) {
       .sheet-content { max-width: 500px; margin: 0 auto; }
       .modal { max-width: 450px; }
@@ -332,7 +343,7 @@
       <button class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
       <span v-if="user && user.role === 'admin'" class="role-badge">👑 Админ</span>
     </div>
-    <div class="header-center">📅 График работы</div>
+    <div class="header-center">📅 График на <span style="opacity:0.7;">{{ currentMonthTitle }}</span></div>
     <div class="header-right">
       <button v-if="user && user.role === 'admin'" class="icon-btn" 
               :style="{color: availabilityMode ? 'var(--warning)' : ''}" 
@@ -364,7 +375,8 @@
     </div>
 
     <!-- Main Content -->
-    <div v-else class="calendar-wrapper">
+    <div v-else class="calendar-wrapper" 
+         @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
       <!-- Calendar Header -->
       <div class="calendar-header">
         <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
@@ -399,7 +411,7 @@
     <button class="btn btn-sm btn-secondary" @click="openSetScheduleModal">📝 График</button>
     <button class="btn btn-sm" :class="availabilityMode ? 'btn-primary' : 'btn-secondary'" 
             @click="toggleAvailabilityMode">
-      {{ availabilityMode ? '🔴 Режим отметок' : '🟢 Вкл. отметки' }}
+      {{ availabilityMode ? '🔴 Режим' : '🟢 Отметки' }}
     </button>
   </div>
   <div class="bottom-bar" v-else-if="user">
@@ -408,24 +420,22 @@
     <button class="nav-btn" @click="nextMonth">→</button>
   </div>
 
-  <!-- Admin settings sheet -->
+  <!-- Settings Sheet -->
   <div :class="['sheet', { active: showSettings }]" @click.self="showSettings = false">
     <div class="sheet-content">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <h3 style="margin:0;">⚙️ Администрирование</h3>
-        <button class="icon-btn" @click="showSettings = false">✕</button>
+        <button class="icon-btn" @click="showSettings = false" style="font-size:18px;">✕</button>
       </div>
 
-      <!-- Admin email -->
       <div style="margin-bottom:16px;">
         <label style="font-size:11px;color:var(--text-muted);">Email для восстановления пароля</label>
         <div class="flex-row">
-          <input v-model="adminEmail" type="email" placeholder="admin@example.com" style="flex:1;">
-          <button class="btn btn-primary" style="width:auto;flex-shrink:0;" @click="saveAdminEmail">💾</button>
+          <input v-model="adminEmail" type="email" placeholder="admin@example.com">
+          <button class="btn btn-primary" style="width:auto;" @click="saveAdminEmail">💾</button>
         </div>
       </div>
 
-      <!-- Workers list -->
       <div style="margin-bottom:12px;font-weight:600;font-size:14px;">👥 Сотрудники</div>
       <div v-if="workers.length === 0" class="empty-state">Нет сотрудников</div>
       <div v-for="w in workers" :key="w.id" class="worker-row">
@@ -442,15 +452,15 @@
             <input type="checkbox" :checked="w.isActive !== false" @change="toggleWorkerActive(w)">
             <span class="slider"></span>
           </label>
-          <button class="icon-btn" @click="openEditWorkerModal(w)" style="font-size:14px;">✏️</button>
-          <button v-if="w.deviceId" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство" style="font-size:14px;">📱</button>
-          <button class="icon-btn" @click="deleteWorker(w)" style="color:var(--danger);font-size:14px;">🗑️</button>
+          <button class="icon-btn" @click="openEditWorkerModal(w)">✏️</button>
+          <button v-if="w.deviceId" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство">📱</button>
+          <button class="icon-btn" @click="deleteWorker(w)" style="color:var(--danger);">🗑️</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Add/Edit Worker Modal -->
+  <!-- Worker Modal -->
   <div :class="['modal-overlay', { active: showWorkerModal }]" @click.self="showWorkerModal = false">
     <div class="modal">
       <div class="modal-title">{{ editingWorker ? '✏️ Редактировать' : '➕ Новый сотрудник' }}</div>
@@ -463,13 +473,13 @@
     </div>
   </div>
 
-  <!-- Set Schedule Modal -->
+  <!-- Schedule Modal -->
   <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="showScheduleModal = false">
     <div class="modal" style="max-height:80vh;overflow-y:auto;">
       <div class="modal-title">📝 Редактировать график</div>
       <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
       <div v-if="selectedScheduleDate" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
-        Отметьте сотрудников на смену {{ formatDate(selectedScheduleDate) }}:
+        Сотрудники на {{ formatDate(selectedScheduleDate) }}:
       </div>
       <div v-if="selectedScheduleDate" v-for="w in workers" :key="w.id" 
            style="display:flex;align-items:center;gap:8px;padding:6px 0;">
@@ -478,20 +488,16 @@
                style="width:18px;height:18px;accent-color:var(--primary);">
         <span style="font-size:13px;">{{ w.name }}</span>
       </div>
-      <div class="flex-row" style="margin-top:12px;">
-        <button class="btn btn-secondary" @click="showScheduleModal = false">Закрыть</button>
-      </div>
+      <button class="btn btn-secondary" @click="showScheduleModal = false" style="margin-top:12px;">Закрыть</button>
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast"></div>
 </div>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script>
-// ========== GITHUB CONFIG ==========
-// ВСТАВЬ СВОЙ ЗАШИФРОВАННЫЙ ТОКЕН:
+// ===== GITHUB CONFIG =====
 const _e = [42,17,35,60,88,43,92,16,93,13,38,9,19,11,9,71,102,0,107,98,11,50,41,81,31,19,39,44,27,84,54,20,40,36,87,48,106,86,124,100];
 const _k = "MyScheduleSecret2026";
 const GITHUB_TOKEN = _e.map((b,i) => String.fromCharCode(b ^ _k.charCodeAt(i % _k.length))).join('');
@@ -500,7 +506,7 @@ const REPO_OWNER = 'spoiler038';
 const REPO_NAME = 'WorkSchedule';
 const BRANCH = 'main';
 const SUPER_ADMIN_PHONE = '79778700833';
-// ===================================
+const DATA_FILES = ['workers.json', 'schedule.json', 'admin.json', 'unavailability.json'];
 
 function formatPhone(phone) {
   let c = String(phone || '').replace(/[^\d]/g, '');
@@ -531,15 +537,10 @@ class GitHubDB {
     try {
       const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${filename}?t=${Date.now()}`;
       const r = await fetch(url);
-      if (r.status === 404 || r.status === 400) return null;
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) return null;
       const text = await r.text();
-      if (!text || text.trim() === '') return null;
-      return JSON.parse(text);
-    } catch (e) {
-      console.error('getFile error:', filename, e);
-      return null;
-    }
+      return text ? JSON.parse(text) : null;
+    } catch { return null; }
   }
 
   async saveFile(filename, data) {
@@ -550,31 +551,33 @@ class GitHubDB {
         const info = await getR.json();
         sha = info.sha;
       }
-      
       const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
       const body = { message: `Update ${filename}`, content, branch: BRANCH };
       if (sha) body.sha = sha;
-      
-      const putR = await fetch(`${this.baseUrl}/${filename}`, {
+      await fetch(`${this.baseUrl}/${filename}`, {
         method: 'PUT',
         headers: { ...this.headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      
-      if (!putR.ok) {
-        const err = await putR.json().catch(() => ({}));
-        throw new Error(err.message || `HTTP ${putR.status}`);
+    } catch (e) { console.error('saveFile:', filename, e); }
+  }
+
+  async ensureFilesExist() {
+    for (const file of DATA_FILES) {
+      const exists = await this.getFile(file);
+      if (!exists) {
+        const emptyData = file === 'admin.json' ? { password: '', phone: SUPER_ADMIN_PHONE, email: '' } : 
+                         file === 'workers.json' ? [] : 
+                         file === 'schedule.json' ? {} : {};
+        await this.saveFile(file, emptyData);
       }
-    } catch (e) {
-      console.error('saveFile error:', filename, e);
-      throw e;
     }
   }
 }
 
 const db = new GitHubDB();
 
-const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, computed, onMounted } = Vue;
 
 createApp({
   setup() {
@@ -602,10 +605,13 @@ createApp({
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
 
-    // ===== COMPUTED =====
+    // Touch для свайпов
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
     const needAdminPassword = computed(() => {
-      const phone = formatPhone(loginPhone.value);
-      return phone === SUPER_ADMIN_PHONE;
+      return formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE;
     });
 
     const currentMonthTitle = computed(() => {
@@ -620,6 +626,7 @@ createApp({
       
       let startDay = firstDay.getDay() || 7;
       startDay -= 1;
+      if (startDay < 0) startDay = 6;
 
       const days = [];
       const today = new Date();
@@ -653,79 +660,33 @@ createApp({
       return { dateStr, dayNum: date.getDate(), isCurrentMonth, isToday, workers: dayWorkers };
     }
 
-    // ===== METHODS =====
     async function loadData() {
       try {
-        const [w, s, a] = await Promise.all([
+        const [w, s, a, u] = await Promise.all([
           db.getFile('workers.json'),
           db.getFile('schedule.json'),
-          db.getFile('admin.json')
+          db.getFile('admin.json'),
+          db.getFile('unavailability.json')
         ]);
         workers.value = w || [];
         schedule.value = s || {};
+        unavailability.value = u || {};
         if (a) adminEmail.value = a.email || '';
-      } catch (e) {
-        console.error('Load error:', e);
-      }
-    }
-
-    async function loadUnavailability() {
-      try {
-        const data = await db.getFile('unavailability.json');
-        unavailability.value = data || {};
-      } catch {}
-    }
-
-    async function saveWorkers() {
-      try { await db.saveFile('workers.json', workers.value); showToast('Сохранено', 'success'); } 
-      catch { showToast('Ошибка сохранения', 'error'); }
-    }
-
-    async function saveSchedule() {
-      try { await db.saveFile('schedule.json', schedule.value); } 
-      catch { showToast('Ошибка сохранения', 'error'); }
-    }
-
-    async function saveAdminEmail() {
-      try {
-        await db.saveFile('admin.json', { email: adminEmail.value, password: await getAdminPassword(), phone: SUPER_ADMIN_PHONE });
-        showToast('Email сохранён', 'success');
-      } catch { showToast('Ошибка', 'error'); }
-    }
-
-    async function getAdminPassword() {
-      try {
-        const data = await db.getFile('admin.json');
-        return data?.password || '';
-      } catch { return ''; }
-    }
-
-    async function setAdminPassword(pass) {
-      try {
-        const data = await db.getFile('admin.json') || {};
-        await db.saveFile('admin.json', { ...data, password: pass, phone: SUPER_ADMIN_PHONE });
-      } catch { console.error('Set password error'); }
+      } catch (e) { console.error('Load error:', e); }
     }
 
     async function handleLogin() {
       loginError.value = '';
       const phone = formatPhone(loginPhone.value);
       if (!phone) { loginError.value = 'Введите номер телефона'; return; }
-
       loading.value = true;
 
       try {
-        // Суперадмин
         if (phone === SUPER_ADMIN_PHONE) {
           const data = await db.getFile('admin.json');
           if (!data || !data.password) {
-            if (!loginPass.value) {
-              loginError.value = 'Придумайте пароль для первого входа (минимум 4 символа)';
-              loading.value = false;
-              return;
-            }
-            if (loginPass.value.length < 4) {
-              loginError.value = 'Пароль должен быть минимум 4 символа';
+            if (!loginPass.value || loginPass.value.length < 4) {
+              loginError.value = 'Придумайте пароль (минимум 4 символа)';
               loading.value = false;
               return;
             }
@@ -742,41 +703,30 @@ createApp({
             user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
             localStorage.setItem('ws_session', JSON.stringify(user.value));
             await loadData();
-            showToast('👋 С возвращением, администратор!', 'success');
+            showToast('👋 С возвращением!', 'success');
           }
-          loginPhone.value = ''; loginPass.value = '';
-          loading.value = false;
-          return;
+        } else {
+          const worker = workers.value.find(w => w.phone === phone);
+          if (!worker) { loginError.value = 'Номер не найден'; loading.value = false; return; }
+          if (worker.isActive === false) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
+          if (worker.deviceId && worker.deviceId !== getDeviceId()) {
+            loginError.value = 'Аккаунт уже используется на другом устройстве';
+            loading.value = false;
+            return;
+          }
+          if (!worker.deviceId) {
+            worker.deviceId = getDeviceId();
+            await db.saveFile('workers.json', workers.value);
+          }
+          user.value = { id: worker.id, phone, role: worker.role || 'worker', name: worker.name };
+          localStorage.setItem('ws_session', JSON.stringify(user.value));
+          await loadData();
+          showToast(`👋 Здравствуйте, ${worker.name}!`, 'success');
         }
-
-        // Обычный сотрудник
-        const worker = workers.value.find(w => w.phone === phone);
-        if (!worker) { loginError.value = 'Номер не найден. Обратитесь к администратору.'; loading.value = false; return; }
-        if (worker.isActive === false) { loginError.value = 'Аккаунт отключен администратором'; loading.value = false; return; }
-        
-        if (worker.deviceId && worker.deviceId !== getDeviceId()) {
-          loginError.value = 'Этот аккаунт уже используется на другом устройстве';
-          loading.value = false;
-          return;
-        }
-
-        if (!worker.deviceId) {
-          worker.deviceId = getDeviceId();
-          const idx = workers.value.findIndex(x => x.id === worker.id);
-          if (idx > -1) workers.value[idx] = worker;
-          await db.saveFile('workers.json', workers.value);
-        }
-
-        user.value = { id: worker.id, phone: worker.phone, role: worker.role || 'worker', name: worker.name };
-        localStorage.setItem('ws_session', JSON.stringify(user.value));
-        await loadData();
-        showToast(`👋 Здравствуйте, ${worker.name}!`, 'success');
+        loginPhone.value = ''; loginPass.value = '';
       } catch (e) {
         loginError.value = 'Ошибка загрузки. Проверьте интернет.';
       }
-      
-      loginPhone.value = ''; 
-      loginPass.value = '';
       loading.value = false;
     }
 
@@ -788,23 +738,33 @@ createApp({
     function prevMonth() {
       currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
     }
-    
     function nextMonth() {
       currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
     }
-    
-    function goToday() {
-      currentMonth.value = new Date();
+    function goToday() { currentMonth.value = new Date(); }
+
+    function onTouchStart(e) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchStartTime = Date.now();
+    }
+    function onTouchMove(e) {}
+    function onTouchEnd(e) {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const dt = Date.now() - touchStartTime;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && dt < 400) {
+        if (dx < 0) nextMonth();
+        else prevMonth();
+      }
     }
 
     function handleDayClick(day) {
       if (!user.value) return;
-      
       if (availabilityMode.value) {
         toggleUnavailability(day.dateStr);
         return;
       }
-
       if (user.value.role === 'admin' && day.isCurrentMonth) {
         selectedScheduleDate.value = day.dateStr;
         showScheduleModal.value = true;
@@ -812,24 +772,21 @@ createApp({
     }
 
     function toggleUnavailability(dateStr) {
-      if (!user.value) return;
       const today = new Date(); today.setHours(0,0,0,0);
       const target = new Date(dateStr); target.setHours(0,0,0,0);
       if (target < today) { showToast('Нельзя изменить прошедший день', 'warning'); return; }
-
       if (!unavailability.value[user.value.id]) unavailability.value[user.value.id] = [];
       const arr = unavailability.value[user.value.id];
       const idx = arr.indexOf(dateStr);
       if (idx > -1) arr.splice(idx, 1);
       else arr.push(dateStr);
-
-      db.saveFile('unavailability.json', unavailability.value).catch(console.error);
+      db.saveFile('unavailability.json', unavailability.value);
       showToast(idx > -1 ? '✅ День доступен' : '❌ День отмечен как недоступный', 'warning');
     }
 
     function isDayUnavailable(dateStr) {
-      if (!user.value || !availabilityMode.value) return false;
-      const arr = unavailability.value[user.value.id];
+      if (!availabilityMode.value) return false;
+      const arr = unavailability.value[user.value?.id];
       return arr ? arr.includes(dateStr) : false;
     }
 
@@ -841,11 +798,7 @@ createApp({
 
     function toggleAvailabilityMode() {
       availabilityMode.value = !availabilityMode.value;
-      if (availabilityMode.value) {
-        showToast('🟡 Режим отметок включён. Нажимайте на дни, когда не можете работать.', 'warning');
-      } else {
-        showToast('🟢 Режим отметок выключен', 'success');
-      }
+      showToast(availabilityMode.value ? '🟡 Режим отметок включён' : '🟢 Режим отметок выключен', 'warning');
     }
 
     function openAddWorkerModal() {
@@ -853,57 +806,35 @@ createApp({
       workerForm.value = { name: '', phone: '' };
       showWorkerModal.value = true;
     }
-
     function openEditWorkerModal(w) {
       editingWorker.value = w;
       workerForm.value = { name: w.name, phone: w.phone };
       showWorkerModal.value = true;
     }
-
     async function saveWorker() {
       const name = workerForm.value.name.trim();
       const phone = formatPhone(workerForm.value.phone);
       if (!name || !phone) { showToast('Заполните все поля', 'error'); return; }
-
       if (editingWorker.value) {
         const i = workers.value.findIndex(w => w.id === editingWorker.value.id);
-        if (i > -1) {
-          workers.value[i].name = name;
-          workers.value[i].phone = phone;
-        }
+        if (i > -1) { workers.value[i].name = name; workers.value[i].phone = phone; }
       } else {
-        workers.value.push({
-          id: 'w_' + Date.now(),
-          name, phone,
-          role: 'worker',
-          isActive: true,
-          deviceId: null
-        });
+        workers.value.push({ id: 'w_' + Date.now(), name, phone, role: 'worker', isActive: true, deviceId: null });
       }
-
-      await saveWorkers();
+      await db.saveFile('workers.json', workers.value);
       showWorkerModal.value = false;
+      showToast('Сотрудник сохранён', 'success');
     }
 
-    async function toggleWorkerActive(w) {
-      w.isActive = !w.isActive;
-      await saveWorkers();
-    }
-
-    async function resetDevice(w) {
-      w.deviceId = null;
-      delete w.deviceId;
-      await saveWorkers();
-      workers.value = [...workers.value];
-      showToast('Устройство сброшено', 'success');
-    }
-
+    async function toggleWorkerActive(w) { w.isActive = !w.isActive; await db.saveFile('workers.json', workers.value); }
+    async function resetDevice(w) { w.deviceId = null; await db.saveFile('workers.json', workers.value); showToast('Устройство сброшено', 'success'); }
+    
     async function deleteWorker(w) {
-      if (!confirm(`Удалить сотрудника ${w.name}?`)) return;
+      if (!confirm(`Удалить ${w.name}?`)) return;
       workers.value = workers.value.filter(x => x.id !== w.id);
-      for (let date in schedule.value) {
-        schedule.value[date] = schedule.value[date].filter(id => id !== w.id);
-        if (schedule.value[date].length === 0) delete schedule.value[date];
+      for (let d in schedule.value) {
+        schedule.value[d] = schedule.value[d].filter(id => id !== w.id);
+        if (!schedule.value[d].length) delete schedule.value[d];
       }
       await db.saveFile('workers.json', workers.value);
       await db.saveFile('schedule.json', schedule.value);
@@ -914,43 +845,37 @@ createApp({
       selectedScheduleDate.value = new Date().toISOString().slice(0, 10);
       showScheduleModal.value = true;
     }
-
-    function isScheduled(workerId, dateStr) {
-      return (schedule.value[dateStr] || []).includes(workerId);
-    }
-
+    function isScheduled(workerId, dateStr) { return (schedule.value[dateStr] || []).includes(workerId); }
+    
     async function toggleSchedule(workerId, dateStr) {
       if (!schedule.value[dateStr]) schedule.value[dateStr] = [];
       const arr = schedule.value[dateStr];
       const idx = arr.indexOf(workerId);
       if (idx > -1) arr.splice(idx, 1);
       else arr.push(workerId);
-      if (arr.length === 0) delete schedule.value[dateStr];
-      
+      if (!arr.length) delete schedule.value[dateStr];
       schedule.value = { ...schedule.value };
-      await saveSchedule();
+      await db.saveFile('schedule.json', schedule.value);
     }
 
-    function callWorker(worker) {
-      if (worker.phone) {
-        window.location.href = 'tel:' + worker.phone;
-      }
-    }
-
-    function formatDate(dateStr) {
-      if (!dateStr) return '';
-      const parts = dateStr.split('-');
-      return `${parts[2]}.${parts[1]}.${parts[0]}`;
-    }
+    function callWorker(worker) { if (worker.phone) window.location.href = 'tel:' + worker.phone; }
+    function formatDate(d) { if (!d) return ''; const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; }
 
     function toggleTheme() {
       isDark.value = !isDark.value;
-      localStorage.setItem('ws_theme', isDark.value ? 'dark' : 'light');
       document.body.className = isDark.value ? 'dark' : 'light';
+      localStorage.setItem('ws_theme', isDark.value ? 'dark' : 'light');
     }
 
-    function openSettings() {
-      showSettings.value = true;
+    function openSettings() { showSettings.value = true; }
+    
+    async function saveAdminEmail() {
+      try {
+        const data = await db.getFile('admin.json') || {};
+        data.email = adminEmail.value;
+        await db.saveFile('admin.json', data);
+        showToast('Email сохранён', 'success');
+      } catch { showToast('Ошибка', 'error'); }
     }
 
     function showToast(msg, type = '') {
@@ -960,17 +885,14 @@ createApp({
       el.textContent = msg;
       el.className = 'toast ' + type;
       el.style.display = 'block';
-      toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+      toastTimer = setTimeout(() => el.style.display = 'none', 3000);
     }
 
-    // ===== INIT =====
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
-      
+      await db.ensureFilesExist();
       await loadData();
-      await loadUnavailability();
       
-      // Автологин
       const saved = localStorage.getItem('ws_session');
       if (saved) {
         try {
@@ -979,21 +901,12 @@ createApp({
             const data = await db.getFile('admin.json');
             if (data?.phone === SUPER_ADMIN_PHONE) {
               user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
-              adminEmail.value = data.email || '';
-            } else {
-              localStorage.removeItem('ws_session');
             }
           } else {
             const w = workers.value.find(x => x.id === sess.id);
-            if (w && w.isActive !== false) {
-              if (w.deviceId && w.deviceId !== getDeviceId()) {
-                localStorage.removeItem('ws_session');
-              } else {
-                user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
-              }
-            } else {
-              localStorage.removeItem('ws_session');
-            }
+            if (w && w.isActive !== false && (!w.deviceId || w.deviceId === getDeviceId())) {
+              user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
+            } else { localStorage.removeItem('ws_session'); }
           }
         } catch { localStorage.removeItem('ws_session'); }
       }
@@ -1005,20 +918,17 @@ createApp({
       currentMonth, currentMonthTitle, calendarDays,
       availabilityMode,
       showSettings, showWorkerModal, showScheduleModal,
-      editingWorker, workerForm,
-      selectedScheduleDate,
+      editingWorker, workerForm, selectedScheduleDate,
       isDark,
-      handleLogin, logout,
-      prevMonth, nextMonth, goToday,
-      handleDayClick, toggleUnavailability,
-      isDayUnavailable, isWorkerUnavailable,
+      handleLogin, logout, prevMonth, nextMonth, goToday,
+      onTouchStart, onTouchMove, onTouchEnd,
+      handleDayClick, toggleUnavailability, isDayUnavailable, isWorkerUnavailable,
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
       openSetScheduleModal, isScheduled, toggleSchedule,
       callWorker, formatDate,
-      saveAdminEmail, openSettings,
-      toggleTheme, showToast
+      saveAdminEmail, openSettings, toggleTheme, showToast
     };
   }
 }).mount('#app');
