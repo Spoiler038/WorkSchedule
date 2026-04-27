@@ -2,7 +2,7 @@
   {
     "id": "w_1777258041733",
     "name": "Маргарита",
-    "phone": "79771627484",
+    "phone": "79991627484",
     "role": "worker",
     "isActive": true,
     "deviceId": null
@@ -21,6 +21,6 @@
     "phone": "79991234567",
     "role": "worker",
     "isActive": true,
-    "deviceId": "dev_7aadhmimo4kmoglwifg"
+    "deviceId": null
   }
 ]
