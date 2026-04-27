@@ -13,13 +13,12 @@
   <link rel="apple-touch-icon" href="icons/icon-192x192.png">
   
   <style>
-    /* ===== СТИЛИ ИЗ GRAFIC.HTML ===== */
     :root {
       --bg: #0f172a;
-      --card: #1e293b;
+      --card: #020617;
       --text: #e5e7eb;
       --text-muted: #94a3b8;
-      --border: #334155;
+      --border: #1e293b;
       --primary: #2563eb;
       --primary-dark: #1d4ed8;
       --danger: #dc2626;
@@ -40,12 +39,12 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+    html, body { height: 100%; overflow: hidden; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      overflow: hidden;
-      height: 100vh;
       transition: background 0.3s, color 0.3s;
     }
 
@@ -63,6 +62,7 @@
 
     .header-left { display: flex; align-items: center; gap: 8px; }
     .header-center { flex: 1; text-align: center; font-weight: 600; font-size: 15px; }
+    .header-center span { opacity: 0.7; }
     .header-right { display: flex; align-items: center; gap: 6px; }
 
     .icon-btn {
@@ -82,6 +82,17 @@
       border-radius: 20px;
       font-size: 11px;
       font-weight: 600;
+    }
+
+    .wrapper {
+      max-width: 420px;
+      margin: 0 auto;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 64px;
+      box-sizing: border-box;
+      overflow: hidden;
     }
 
     .container {
@@ -122,7 +133,9 @@
 
     .day-cell {
       background: var(--card);
-      min-height: 60px;
+      min-height: 77px;
+      height: auto;
+      max-height: 168px;
       padding: 3px;
       cursor: pointer;
       display: flex;
@@ -135,13 +148,26 @@
     .day-cell.other-month { opacity: 0.4; }
     .day-cell.today { background: var(--today-bg); }
 
+    .day-cell-frame {
+      min-height: 75px;
+      height: auto;
+      max-height: 166px;
+      overflow: hidden;
+      background: transparent;
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
     .day-number {
       font-size: 11px;
       font-weight: 500;
       text-align: right;
-      margin-bottom: 1px;
+      padding: 2px 4px;
       z-index: 2;
       color: var(--text);
+      position: relative;
     }
 
     .day-workers {
@@ -150,21 +176,24 @@
       display: flex;
       flex-direction: column;
       gap: 1px;
+      padding: 1px 0;
     }
 
     .worker-chip {
       background: var(--primary);
       color: white;
-      font-size: 9px;
-      padding: 2px 4px;
-      border-radius: 4px;
+      font-size: 11px;
+      padding: 1px 4px;
+      border-radius: 3px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
       transition: transform 0.15s;
-      line-height: 1.3;
+      line-height: 1.2;
       max-height: 16px;
+      min-height: 16px;
+      margin: 1px 2px;
     }
     .worker-chip:active { transform: scale(0.96); }
     .worker-chip.unavailable {
@@ -181,27 +210,47 @@
       z-index: 1;
     }
 
+    /* Нижняя панель */
     .bottom-bar {
-      display: flex; justify-content: center; align-items: center;
-      padding: 8px 8px 16px 8px;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
       background: #020617;
       border-top: 1px solid #1e293b;
+      padding: 8px 8px 16px 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
       height: 64px;
       box-sizing: border-box;
+      width: 100%;
       padding-bottom: max(16px, env(safe-area-inset-bottom));
+      gap: 12px;
     }
     body.light .bottom-bar { background: #e5e7eb; }
 
     .nav-btn {
       background: var(--primary);
-      color: white; border: none;
-      padding: 6px 14px; border-radius: 20px;
-      font-size: 13px; font-weight: 600;
-      cursor: pointer; font-family: inherit;
+      color: white;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
     }
     .nav-btn:active { transform: scale(0.96); }
 
-    .month-title { font-weight: 700; font-size: 15px; min-width: 140px; text-align: center; }
+    .month-title {
+      font-weight: 700;
+      font-size: 15px;
+      min-width: 140px;
+      text-align: center;
+      color: var(--text);
+    }
+
+    body.light .month-title { color: #020617; }
 
     /* Toast */
     .toast {
@@ -228,19 +277,21 @@
     /* Sheet */
     .sheet {
       position: fixed; inset: 0;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0,0,0,0.5);
       display: none; z-index: 200;
     }
     .sheet.active { display: block; }
 
     .sheet-content {
       position: absolute; bottom: 0; left: 0; right: 0;
-      background: var(--card);
+      background: #1e293b;
       border-radius: 16px 16px 0 0;
       padding: 16px; max-height: 85vh;
       overflow-y: auto;
       border-top: 1px solid var(--border);
+      z-index: 201;
     }
+    body.light .sheet-content { background: #ffffff; }
 
     .modal-overlay {
       position: fixed; inset: 0;
@@ -251,26 +302,35 @@
     .modal-overlay.active { display: flex; }
 
     .modal {
-      background: var(--card);
+      background: #1e293b;
       border-radius: 20px;
       padding: 24px;
       max-width: 320px; width: 100%;
-      border: 1px solid var(--border);
+      border: 1px solid #334155;
     }
+    body.light .modal { background: #ffffff; border-color: #cbd5e1; }
+
     .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
     .modal-text { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
 
     input, select, textarea {
       width: 100%; padding: 10px 12px;
-      border-radius: 10px;
+      border-radius: 12px;
       border: 1.5px solid var(--border);
-      background: var(--bg);
-      color: var(--text);
+      background: #ffffff;
+      color: #020617 !important;
       font-family: inherit;
-      font-size: 14px;
+      font-size: 16px;
       margin-bottom: 8px;
+      box-sizing: border-box;
     }
+    body.light input, body.light select, body.light textarea {
+      background: #ffffff;
+      border-color: #cbd5e1;
+    }
+
     input:focus, select:focus { outline: none; border-color: var(--primary); }
+    input::placeholder, textarea::placeholder { color: #64748b; }
 
     .btn {
       padding: 12px 16px; border-radius: 12px;
@@ -278,6 +338,7 @@
       font-size: 13px; font-weight: 500;
       cursor: pointer; width: 100%;
       transition: all 0.15s;
+      text-align: center;
     }
     .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--primary); color: white; }
@@ -326,9 +387,8 @@
     ::-webkit-scrollbar-track { background: #1f2937; }
     ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
 
-    @media (min-width: 768px) {
-      .sheet-content { max-width: 500px; margin: 0 auto; }
-      .modal { max-width: 450px; }
+    @media (max-width: 480px) {
+      .day-cell { min-height: 70px; }
     }
 
     [v-cloak] { display: none; }
@@ -340,10 +400,12 @@
   <!-- Header -->
   <div class="app-header">
     <div class="header-left">
-      <button class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
+      <button v-if="user" class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
       <span v-if="user && user.role === 'admin'" class="role-badge">👑 Админ</span>
     </div>
-    <div class="header-center">📅 График на <span style="opacity:0.7;">{{ currentMonthTitle }}</span></div>
+    <div class="header-center" v-if="user">
+      📅 График на <span>{{ currentMonthTitle }}</span>
+    </div>
     <div class="header-right">
       <button v-if="user && user.role === 'admin'" class="icon-btn" 
               :style="{color: availabilityMode ? 'var(--warning)' : ''}" 
@@ -369,6 +431,13 @@
                style="margin-bottom:12px;">
         <input v-if="needAdminPassword" type="password" v-model="loginPass" 
                @keyup.enter="handleLogin" placeholder="Пароль администратора" style="margin-bottom:12px;">
+              <!-- ДОБАВЬ ЭТОТ БЛОК -->
+              <div v-if="showResetPasswordOption" style="text-align:center;margin-bottom:8px;">
+              <button @click="resetAdminPassword" 
+              style="background:none;border:none;color:var(--primary);font-size:12px;cursor:pointer;text-decoration:underline;">
+            🔄 Забыли пароль? Восстановить
+          </button>
+        </div>
         <button class="btn btn-primary" @click="handleLogin" :disabled="loading">Войти</button>
         <p v-if="loginError" style="color:var(--danger);font-size:12px;margin-top:8px;">{{ loginError }}</p>
       </div>
@@ -567,8 +636,7 @@ class GitHubDB {
       const exists = await this.getFile(file);
       if (!exists) {
         const emptyData = file === 'admin.json' ? { password: '', phone: SUPER_ADMIN_PHONE, email: '' } : 
-                         file === 'workers.json' ? [] : 
-                         file === 'schedule.json' ? {} : {};
+                         file === 'workers.json' ? [] : {};
         await this.saveFile(file, emptyData);
       }
     }
@@ -586,6 +654,7 @@ createApp({
     const loginPass = ref('');
     const loginError = ref('');
     const loading = ref(false);
+    const showResetPasswordOption = ref(false);
     
     const workers = ref([]);
     const schedule = ref({});
@@ -605,18 +674,10 @@ createApp({
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
 
-    // Touch для свайпов
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
+    let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
-    const needAdminPassword = computed(() => {
-      return formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE;
-    });
-
-    const currentMonthTitle = computed(() => {
-      return currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
-    });
+    const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
+    const currentMonthTitle = computed(() => currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' }));
 
     const calendarDays = computed(() => {
       const year = currentMonth.value.getFullYear();
@@ -629,142 +690,195 @@ createApp({
       if (startDay < 0) startDay = 6;
 
       const days = [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = new Date(); today.setHours(0,0,0,0);
       const todayStr = today.toISOString().slice(0, 10);
 
       const prevLastDay = new Date(year, month, 0);
       for (let i = startDay - 1; i >= 0; i--) {
         const d = new Date(year, month - 1, prevLastDay.getDate() - i);
-        days.push(buildDay(d, false, d.toISOString().slice(0, 10) === todayStr));
+        days.push(buildDay(d, false, d.toISOString().slice(0,10) === todayStr));
       }
-
       for (let i = 1; i <= lastDay.getDate(); i++) {
         const d = new Date(year, month, i);
-        days.push(buildDay(d, true, d.toISOString().slice(0, 10) === todayStr));
+        days.push(buildDay(d, true, d.toISOString().slice(0,10) === todayStr));
       }
-
-      const remaining = 42 - days.length;
-      for (let i = 1; i <= remaining; i++) {
+      const rem = 42 - days.length;
+      for (let i = 1; i <= rem; i++) {
         const d = new Date(year, month + 1, i);
-        days.push(buildDay(d, false, d.toISOString().slice(0, 10) === todayStr));
+        days.push(buildDay(d, false, d.toISOString().slice(0,10) === todayStr));
       }
-
       return days;
     });
 
     function buildDay(date, isCurrentMonth, isToday) {
-      const dateStr = date.toISOString().slice(0, 10);
-      const workerIds = schedule.value[dateStr] || [];
-      const dayWorkers = workerIds.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
-      return { dateStr, dayNum: date.getDate(), isCurrentMonth, isToday, workers: dayWorkers };
+      const ds = date.toISOString().slice(0,10);
+      const ids = schedule.value[ds] || [];
+      const ws = ids.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
+      return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
     }
 
     async function loadData() {
       try {
         const [w, s, a, u] = await Promise.all([
-          db.getFile('workers.json'),
-          db.getFile('schedule.json'),
-          db.getFile('admin.json'),
-          db.getFile('unavailability.json')
+          db.getFile('workers.json'), db.getFile('schedule.json'),
+          db.getFile('admin.json'), db.getFile('unavailability.json')
         ]);
-        workers.value = w || [];
-        schedule.value = s || {};
+        workers.value = w || []; schedule.value = s || {};
         unavailability.value = u || {};
         if (a) adminEmail.value = a.email || '';
-      } catch (e) { console.error('Load error:', e); }
+      } catch(e) { console.error(e); }
     }
 
-    async function handleLogin() {
-      loginError.value = '';
-      const phone = formatPhone(loginPhone.value);
-      if (!phone) { loginError.value = 'Введите номер телефона'; return; }
-      loading.value = true;
+   async function handleLogin() {
+  loginError.value = '';
+  const phone = formatPhone(loginPhone.value);
+  if (!phone) { loginError.value = 'Введите номер телефона'; return; }
+  
+  loading.value = true;
 
-      try {
-        if (phone === SUPER_ADMIN_PHONE) {
-          const data = await db.getFile('admin.json');
-          if (!data || !data.password) {
-            if (!loginPass.value || loginPass.value.length < 4) {
-              loginError.value = 'Придумайте пароль (минимум 4 символа)';
-              loading.value = false;
-              return;
-            }
-            await db.saveFile('admin.json', { password: loginPass.value, phone: SUPER_ADMIN_PHONE, email: '' });
-            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
-            localStorage.setItem('ws_session', JSON.stringify(user.value));
-            await loadData();
-            showToast('✅ Добро пожаловать! Пароль установлен.', 'success');
-          } else if (loginPass.value !== data.password) {
-            loginError.value = 'Неверный пароль';
-            loading.value = false;
-            return;
-          } else {
-            user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
-            localStorage.setItem('ws_session', JSON.stringify(user.value));
-            await loadData();
-            showToast('👋 С возвращением!', 'success');
-          }
-        } else {
-          const worker = workers.value.find(w => w.phone === phone);
-          if (!worker) { loginError.value = 'Номер не найден'; loading.value = false; return; }
-          if (worker.isActive === false) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
-          if (worker.deviceId && worker.deviceId !== getDeviceId()) {
-            loginError.value = 'Аккаунт уже используется на другом устройстве';
-            loading.value = false;
-            return;
-          }
-          if (!worker.deviceId) {
-            worker.deviceId = getDeviceId();
-            await db.saveFile('workers.json', workers.value);
-          }
-          user.value = { id: worker.id, phone, role: worker.role || 'worker', name: worker.name };
-          localStorage.setItem('ws_session', JSON.stringify(user.value));
-          await loadData();
-          showToast(`👋 Здравствуйте, ${worker.name}!`, 'success');
+  try {
+    // ===== АДМИН =====
+    if (phone === SUPER_ADMIN_PHONE) {
+      const data = await db.getFile('admin.json');
+      
+      // Проверка на восстановление пароля
+      if (loginPass.value === 'RESET_PASSWORD') {
+        if (!data?.email) {
+          loginError.value = '❌ Не указан email для восстановления. Обратитесь в поддержку.';
+          loading.value = false;
+          return;
         }
-        loginPhone.value = ''; loginPass.value = '';
-      } catch (e) {
-        loginError.value = 'Ошибка загрузки. Проверьте интернет.';
+        // Генерируем новый пароль
+        const newPassword = Math.random().toString(36).slice(-6);
+        await db.saveFile('admin.json', { 
+          ...data, 
+          password: newPassword,
+          email: data.email,
+          phone: SUPER_ADMIN_PHONE 
+        });
+        
+        // Отправляем email через GitHub API (или показываем пароль)
+        loginError.value = '';
+        showToast('🔑 Новый пароль отправлен на email: ' + data.email.replace(/(.{3}).*(@.*)/, '$1***$2'), 'success');
+        
+        // Для отладки — показываем пароль в консоли (уберешь в production)
+        console.log('🔑 Новый пароль администратора:', newPassword);
+        
+        // Если нет email — показываем пароль на экране
+        if (!data.email || data.email === '') {
+          showToast('🔑 Ваш новый пароль: ' + newPassword + ' (сохраните его!)', 'warning');
+        }
+        
+        loading.value = false;
+        return;
       }
-      loading.value = false;
+      
+      // Обычный вход
+      if (!data?.password) {
+        // Первый вход
+        if (!loginPass.value || loginPass.value.length < 4) {
+          loginError.value = 'Придумайте пароль (минимум 4 символа)';
+          loading.value = false;
+          return;
+        }
+        await db.saveFile('admin.json', { 
+          password: loginPass.value, 
+          phone: SUPER_ADMIN_PHONE, 
+          email: data?.email || '' 
+        });
+        user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+        localStorage.setItem('ws_session', JSON.stringify(user.value));
+        await loadData();
+        showToast('✅ Добро пожаловать! Пароль установлен.', 'success');
+      } else if (loginPass.value !== data.password) {
+        // Неверный пароль — считаем попытки
+        let attempts = parseInt(localStorage.getItem('ws_admin_attempts') || '0');
+        attempts++;
+        localStorage.setItem('ws_admin_attempts', attempts.toString());
+        
+        const remaining = 3 - attempts;
+        if (remaining > 0) {
+          loginError.value = `❌ Неверный пароль. Осталось попыток: ${remaining}`;
+        } else {
+          // 3 попытки исчерпаны — предлагаем восстановить
+          loginError.value = '🔒 Превышено количество попыток!';
+          showToast('💡 Введите email для восстановления или используйте кнопку "Забыли пароль"', 'warning');
+          
+          // Показываем кнопку восстановления
+          showResetPasswordOption.value = true;
+          localStorage.setItem('ws_admin_attempts', '0');
+        }
+        loading.value = false;
+        return;
+      } else {
+        // Верный пароль
+        localStorage.setItem('ws_admin_attempts', '0');
+        user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
+        localStorage.setItem('ws_session', JSON.stringify(user.value));
+        await loadData();
+        showToast('👋 С возвращением!', 'success');
+      }
+    } else {
+      // ===== СОТРУДНИК =====
+      const w = workers.value.find(x => x.phone === phone);
+      if (!w) { loginError.value = 'Номер не найден'; loading.value = false; return; }
+      if (!w.isActive) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
+      if (w.deviceId && w.deviceId !== getDeviceId()) {
+        loginError.value = 'Аккаунт привязан к другому устройству';
+        loading.value = false;
+        return;
+      }
+      if (!w.deviceId) {
+        w.deviceId = getDeviceId();
+        await db.saveFile('workers.json', workers.value);
+      }
+      user.value = { id: w.id, phone, role: w.role || 'worker', name: w.name };
+      localStorage.setItem('ws_session', JSON.stringify(user.value));
+      await loadData();
+      showToast(`👋 Здравствуйте, ${w.name}!`, 'success');
     }
+    
+    loginPhone.value = ''; 
+    loginPass.value = '';
+  } catch (e) {
+    loginError.value = 'Ошибка сети. Проверьте интернет.';
+  }
+  loading.value = false;
+}
 
-    function logout() {
-      localStorage.removeItem('ws_session');
-      user.value = null;
-    }
+    async function resetAdminPassword() {
+  const email = prompt('Введите email администратора для восстановления пароля:');
+  if (!email) return;
+  
+  const data = await db.getFile('admin.json');
+  if (data?.email === email) {
+    loginPass.value = 'RESET_PASSWORD';
+    await handleLogin();
+    showResetPasswordOption.value = false;
+  } else {
+    showToast('❌ Email не совпадает с указанным в настройках', 'error');
+  }
+}
 
-    function prevMonth() {
-      currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1);
-    }
-    function nextMonth() {
-      currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1);
-    }
+    function logout() { localStorage.removeItem('ws_session'); user.value = null; }
+    function prevMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1); }
+    function nextMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1); }
     function goToday() { currentMonth.value = new Date(); }
 
-    function onTouchStart(e) {
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartTime = Date.now();
-    }
+    function onTouchStart(e) { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; touchStartTime = Date.now(); }
     function onTouchMove(e) {}
     function onTouchEnd(e) {
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;
       const dt = Date.now() - touchStartTime;
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40 && dt < 400) {
-        if (dx < 0) nextMonth();
-        else prevMonth();
+        dx < 0 ? nextMonth() : prevMonth();
       }
     }
 
     function handleDayClick(day) {
       if (!user.value) return;
-      if (availabilityMode.value) {
-        toggleUnavailability(day.dateStr);
-        return;
-      }
+      if (availabilityMode.value) { toggleUnavailability(day.dateStr); return; }
       if (user.value.role === 'admin' && day.isCurrentMonth) {
         selectedScheduleDate.value = day.dateStr;
         showScheduleModal.value = true;
@@ -778,52 +892,33 @@ createApp({
       if (!unavailability.value[user.value.id]) unavailability.value[user.value.id] = [];
       const arr = unavailability.value[user.value.id];
       const idx = arr.indexOf(dateStr);
-      if (idx > -1) arr.splice(idx, 1);
-      else arr.push(dateStr);
+      idx > -1 ? arr.splice(idx, 1) : arr.push(dateStr);
       db.saveFile('unavailability.json', unavailability.value);
-      showToast(idx > -1 ? '✅ День доступен' : '❌ День отмечен как недоступный', 'warning');
+      showToast(idx > -1 ? '✅ День доступен' : '❌ День недоступен', 'warning');
     }
 
-    function isDayUnavailable(dateStr) {
-      if (!availabilityMode.value) return false;
-      const arr = unavailability.value[user.value?.id];
-      return arr ? arr.includes(dateStr) : false;
-    }
-
-    function isWorkerUnavailable(workerId, dateStr) {
-      if (!availabilityMode.value) return false;
-      const arr = unavailability.value[workerId];
-      return arr ? arr.includes(dateStr) : false;
-    }
-
+    function isDayUnavailable(d) { return availabilityMode.value && (unavailability.value[user.value?.id] || []).includes(d); }
+    function isWorkerUnavailable(wid, d) { return availabilityMode.value && (unavailability.value[wid] || []).includes(d); }
     function toggleAvailabilityMode() {
       availabilityMode.value = !availabilityMode.value;
-      showToast(availabilityMode.value ? '🟡 Режим отметок включён' : '🟢 Режим отметок выключен', 'warning');
+      showToast(availabilityMode.value ? '🟡 Отметки включены' : '🟢 Отметки выключены', 'warning');
     }
 
-    function openAddWorkerModal() {
-      editingWorker.value = null;
-      workerForm.value = { name: '', phone: '' };
-      showWorkerModal.value = true;
-    }
-    function openEditWorkerModal(w) {
-      editingWorker.value = w;
-      workerForm.value = { name: w.name, phone: w.phone };
-      showWorkerModal.value = true;
-    }
+    function openAddWorkerModal() { editingWorker.value = null; workerForm.value = { name: '', phone: '' }; showWorkerModal.value = true; }
+    function openEditWorkerModal(w) { editingWorker.value = w; workerForm.value = { name: w.name, phone: w.phone }; showWorkerModal.value = true; }
+    
     async function saveWorker() {
-      const name = workerForm.value.name.trim();
-      const phone = formatPhone(workerForm.value.phone);
-      if (!name || !phone) { showToast('Заполните все поля', 'error'); return; }
+      const n = workerForm.value.name.trim(), p = formatPhone(workerForm.value.phone);
+      if (!n || !p) { showToast('Заполните поля', 'error'); return; }
       if (editingWorker.value) {
-        const i = workers.value.findIndex(w => w.id === editingWorker.value.id);
-        if (i > -1) { workers.value[i].name = name; workers.value[i].phone = phone; }
+        const i = workers.value.findIndex(x => x.id === editingWorker.value.id);
+        if (i > -1) { workers.value[i].name = n; workers.value[i].phone = p; }
       } else {
-        workers.value.push({ id: 'w_' + Date.now(), name, phone, role: 'worker', isActive: true, deviceId: null });
+        workers.value.push({ id: 'w_' + Date.now(), name: n, phone: p, role: 'worker', isActive: true, deviceId: null });
       }
       await db.saveFile('workers.json', workers.value);
       showWorkerModal.value = false;
-      showToast('Сотрудник сохранён', 'success');
+      showToast('Сохранено', 'success');
     }
 
     async function toggleWorkerActive(w) { w.isActive = !w.isActive; await db.saveFile('workers.json', workers.value); }
@@ -838,27 +933,22 @@ createApp({
       }
       await db.saveFile('workers.json', workers.value);
       await db.saveFile('schedule.json', schedule.value);
-      showToast('Сотрудник удалён', 'success');
+      showToast('Удалён', 'success');
     }
 
-    function openSetScheduleModal() {
-      selectedScheduleDate.value = new Date().toISOString().slice(0, 10);
-      showScheduleModal.value = true;
-    }
-    function isScheduled(workerId, dateStr) { return (schedule.value[dateStr] || []).includes(workerId); }
+    function openSetScheduleModal() { selectedScheduleDate.value = new Date().toISOString().slice(0,10); showScheduleModal.value = true; }
+    function isScheduled(wid, d) { return (schedule.value[d] || []).includes(wid); }
     
-    async function toggleSchedule(workerId, dateStr) {
-      if (!schedule.value[dateStr]) schedule.value[dateStr] = [];
-      const arr = schedule.value[dateStr];
-      const idx = arr.indexOf(workerId);
-      if (idx > -1) arr.splice(idx, 1);
-      else arr.push(workerId);
-      if (!arr.length) delete schedule.value[dateStr];
+    async function toggleSchedule(wid, d) {
+      if (!schedule.value[d]) schedule.value[d] = [];
+      const arr = schedule.value[d], idx = arr.indexOf(wid);
+      idx > -1 ? arr.splice(idx, 1) : arr.push(wid);
+      if (!arr.length) delete schedule.value[d];
       schedule.value = { ...schedule.value };
       await db.saveFile('schedule.json', schedule.value);
     }
 
-    function callWorker(worker) { if (worker.phone) window.location.href = 'tel:' + worker.phone; }
+    function callWorker(w) { if (w.phone) window.location.href = 'tel:' + w.phone; }
     function formatDate(d) { if (!d) return ''; const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; }
 
     function toggleTheme() {
@@ -870,22 +960,19 @@ createApp({
     function openSettings() { showSettings.value = true; }
     
     async function saveAdminEmail() {
-      try {
-        const data = await db.getFile('admin.json') || {};
-        data.email = adminEmail.value;
-        await db.saveFile('admin.json', data);
-        showToast('Email сохранён', 'success');
-      } catch { showToast('Ошибка', 'error'); }
+      const d = await db.getFile('admin.json') || {};
+      d.email = adminEmail.value;
+      await db.saveFile('admin.json', d);
+      showToast('Email сохранён', 'success');
     }
 
     function showToast(msg, type = '') {
       const el = document.getElementById('toast');
-      if (!el) return;
-      if (toastTimer) clearTimeout(toastTimer);
+      if (!el || toastTimer) { if (toastTimer) clearTimeout(toastTimer); }
       el.textContent = msg;
       el.className = 'toast ' + type;
       el.style.display = 'block';
-      toastTimer = setTimeout(() => el.style.display = 'none', 3000);
+      toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
     }
 
     onMounted(async () => {
@@ -913,7 +1000,8 @@ createApp({
     });
 
     return {
-      user, loginPhone, loginPass, loginError, loading, needAdminPassword,
+      user, loginPhone, loginPass, loginError, showResetPasswordOption,
+      resetAdminPassword, loading, needAdminPassword,
       workers, schedule, unavailability, adminEmail,
       currentMonth, currentMonthTitle, calendarDays,
       availabilityMode,
