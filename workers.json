@@ -20,7 +20,7 @@
     "name": "Тест",
     "phone": "79991234567",
     "role": "worker",
-    "isActive": true,
+    "isActive": false,
     "deviceId": "dev_k24eq58n4bamoh1rnkl"
   }
 ]
