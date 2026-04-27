@@ -6,5 +6,13 @@
     "role": "worker",
     "isActive": true,
     "deviceId": null
+  },
+  {
+    "id": "w_1777258152750",
+    "name": "София",
+    "phone": "79779336016",
+    "role": "worker",
+    "isActive": true,
+    "deviceId": null
   }
 ]
