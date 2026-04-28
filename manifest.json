@@ -10,6 +10,11 @@
   "orientation": "portrait",
   "icons": [
     {
+      "src": "icons/splash.png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
       "src": "icons/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
