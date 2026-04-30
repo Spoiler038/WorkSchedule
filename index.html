@@ -742,6 +742,47 @@ createApp({
       return WORKER_COLORS[idx % WORKER_COLORS.length];
     }
 
+    // Добавьте эти функции в setup()
+
+// Конвертация UTC в локальное время
+function formatLocalTime(utcDateString) {
+  if (!utcDateString) return '';
+  const date = new Date(utcDateString);
+  return date.toLocaleString('ru-RU', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// Получить сегодняшнюю дату в локальном часовом поясе (YYYY-MM-DD)
+function getLocalToday() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Конвертация локальной даты в UTC для сохранения
+function localDateToUTC(dateStr) {
+  // dateStr в формате YYYY-MM-DD
+  const date = new Date(dateStr + 'T00:00:00+03:00'); // +3 для Москвы
+  return date.toISOString().split('T')[0];
+}
+
+// Конвертация UTC даты в локальную для отображения
+function utcDateToLocal(utcDateStr) {
+  // utcDateStr в формате YYYY-MM-DD
+  const date = new Date(utcDateStr + 'T00:00:00Z');
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
     function getWorkerName(workerId) {
       const w = workers.value.find(x => x.id === workerId);
       return w ? w.name : '';
@@ -779,11 +820,11 @@ createApp({
     });
 
     function buildDay(date, isCurrentMonth, isToday) {
-      const ds = date.toISOString().slice(0,10);
-      const scheduleForDay = schedule.value[ds] || [];
-      const ws = scheduleForDay.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
-      return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
-    }
+  const ds = date.toISOString().slice(0,10); // это уже локальная дата
+  const scheduleForDay = schedule.value[ds] || [];
+  const ws = scheduleForDay.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
+  return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
+}
 
     function getDayUnavailable(dateStr) {
       return Object.entries(unavailability.value)
@@ -862,44 +903,48 @@ createApp({
     }
     
     async function loadSchedule() {
-      const { data, error } = await supabase
-        .from('schedule')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading schedule:', error);
-        return;
-      }
-      
-      const scheduleMap = {};
-      if (data) {
-        data.forEach(item => {
-          if (!scheduleMap[item.date]) scheduleMap[item.date] = [];
-          scheduleMap[item.date].push(item.worker_id);
-        });
-      }
-      schedule.value = scheduleMap;
-    }
-    
-    async function loadUnavailability() {
-      const { data, error } = await supabase
-        .from('unavailability')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading unavailability:', error);
-        return;
-      }
-      
-      const unavailMap = {};
-      if (data) {
-        data.forEach(item => {
-          if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
-          unavailMap[item.worker_id].push(item.date);
-        });
-      }
-      unavailability.value = unavailMap;
-    }
+  const { data, error } = await supabase
+    .from('schedule')
+    .select('*');
+  
+  if (error) {
+    console.error('Error loading schedule:', error);
+    return;
+  }
+  
+  const scheduleMap = {};
+  if (data) {
+    data.forEach(item => {
+      // Конвертируем UTC дату в локальную
+      const localDate = utcDateToLocal(item.date);
+      if (!scheduleMap[localDate]) scheduleMap[localDate] = [];
+      scheduleMap[localDate].push(item.worker_id);
+    });
+  }
+  schedule.value = scheduleMap;
+}
+
+// Замените функцию loadUnavailability
+async function loadUnavailability() {
+  const { data, error } = await supabase
+    .from('unavailability')
+    .select('*');
+  
+  if (error) {
+    console.error('Error loading unavailability:', error);
+    return;
+  }
+  
+  const unavailMap = {};
+  if (data) {
+    data.forEach(item => {
+      const localDate = utcDateToLocal(item.date);
+      if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
+      unavailMap[item.worker_id].push(localDate);
+    });
+  }
+  unavailability.value = unavailMap;
+}
     
     async function loadAdmin() {
       const { data, error } = await supabase
@@ -1140,41 +1185,43 @@ createApp({
     }
     
     async function toggleSchedule(workerId, date) {
-      const isScheduled = (schedule.value[date] || []).includes(workerId);
-      
-      if (isScheduled) {
-        const { error } = await supabase
-          .from('schedule')
-          .delete()
-          .eq('date', date)
-          .eq('worker_id', workerId);
-        if (!error) showToast('Смена удалена', 'success');
-      } else {
-        const { error } = await supabase
-          .from('schedule')
-          .insert([{ date, worker_id: workerId }]);
-        if (!error) showToast('Смена добавлена', 'success');
-      }
-      await loadSchedule();
-    }
+  const isScheduled = (schedule.value[date] || []).includes(workerId);
+  // Конвертируем локальную дату в UTC для сохранения
+  const utcDate = localDateToUTC(date);
+  
+  if (isScheduled) {
+    const { error } = await supabase
+      .from('schedule')
+      .delete()
+      .eq('date', utcDate)
+      .eq('worker_id', workerId);
+    if (!error) showToast('Смена удалена', 'success');
+  } else {
+    const { error } = await supabase
+      .from('schedule')
+      .insert([{ date: utcDate, worker_id: workerId }]);
+    if (!error) showToast('Смена добавлена', 'success');
+  }
+  await loadSchedule();
+}
     
     function isScheduled(workerId, date) {
       return (schedule.value[date] || []).includes(workerId);
     }
     
     async function clearUnavailability(workerId, dateStr) {
-      if (user.value.role !== 'admin') return;
-      const { error } = await supabase
-        .from('unavailability')
-        .delete()
-        .eq('date', dateStr)
-        .eq('worker_id', workerId);
-      if (!error) {
-        showToast('✅ Отметка снята', 'success');
-        await loadUnavailability();
-      }
-    }
-    
+  if (user.value.role !== 'admin') return;
+  const utcDate = localDateToUTC(dateStr);
+  const { error } = await supabase
+    .from('unavailability')
+    .delete()
+    .eq('date', utcDate)
+    .eq('worker_id', workerId);
+  if (!error) {
+    showToast('✅ Отметка снята', 'success');
+    await loadUnavailability();
+  }
+}    
     async function clearAllUnavailability() {
       let totalMarks = 0;
       for (const dates of Object.values(unavailability.value)) {
@@ -1214,32 +1261,31 @@ createApp({
     }
     
     async function toggleUnavailability(dateStr) {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const target = new Date(dateStr); target.setHours(0,0,0,0);
-      if (target < today) {
-        showToast('Нельзя изменить прошедший день', 'warning');
-        return;
-      }
-      
-      const userUnavail = unavailability.value[user.value.id] || [];
-      const isUnavailable = userUnavail.includes(dateStr);
-      
-      if (isUnavailable) {
-        const { error } = await supabase
-          .from('unavailability')
-          .delete()
-          .eq('date', dateStr)
-          .eq('worker_id', user.value.id);
-        if (!error) showToast('✅ День доступен', 'success');
-      } else {
-        const { error } = await supabase
-          .from('unavailability')
-          .insert([{ date: dateStr, worker_id: user.value.id }]);
-        if (!error) showToast('❌ День отмечен', 'warning');
-      }
-      await loadUnavailability();
-    }
-    
+  const today = getLocalToday(); // используем локальную сегодняшнюю дату
+  if (dateStr < today) {
+    showToast('Нельзя изменить прошедший день', 'warning');
+    return;
+  }
+  
+  const userUnavail = unavailability.value[user.value.id] || [];
+  const isUnavailable = userUnavail.includes(dateStr);
+  const utcDate = localDateToUTC(dateStr);
+  
+  if (isUnavailable) {
+    const { error } = await supabase
+      .from('unavailability')
+      .delete()
+      .eq('date', utcDate)
+      .eq('worker_id', user.value.id);
+    if (!error) showToast('✅ День доступен', 'success');
+  } else {
+    const { error } = await supabase
+      .from('unavailability')
+      .insert([{ date: utcDate, worker_id: user.value.id }]);
+    if (!error) showToast('❌ День отмечен', 'warning');
+  }
+  await loadUnavailability();
+}    
     // ========== UI FUNCTIONS ==========
     
     function handleDayClick(day) {
