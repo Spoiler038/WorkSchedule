@@ -31,12 +31,6 @@
       text-align: center;
     }
     
-    .splash-logo {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 20px;
-    }
-    
     .loader {
       width: 40px;
       height: 40px;
@@ -464,13 +458,19 @@
     ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
 
     [v-cloak] { display: none; }
+    
+    /* Кнопка обновления */
+    .refresh-btn {
+      animation: spin 0.5s ease-in-out;
+    }
   </style>
 </head>
 <body class="dark">
 
   <div id="splash">
-  <div class="loader"></div>
-  <img src="icons/splash.png" alt="Logo">
+    <div class="splash-content">
+      <div class="loader"></div>
+    </div>
   </div>
 
 <div id="app" v-cloak>
@@ -478,6 +478,7 @@
   <div class="app-header">
     <div class="header-left">
       <button v-if="user" class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
+      <button v-if="user" class="icon-btn" @click="refreshData" title="Обновить" :disabled="refreshing">🔄</button>
       <span v-if="user && user.role === 'admin'" class="role-badge">👑 Админ</span>
     </div>
     <div class="header-center" v-if="user">
@@ -610,16 +611,16 @@
           <div class="worker-name">{{ w.name }}</div>
           <div class="worker-meta">
             {{ w.phone }}
-            <span v-if="w.deviceId" style="color:var(--text-muted);"> · 📱</span>
-            <span v-if="!w.isActive" style="color:var(--danger);"> · неактивен</span>
+            <span v-if="w.device_id" style="color:var(--text-muted);"> · 📱</span>
+            <span v-if="!w.is_active" style="color:var(--danger);"> · неактивен</span>
           </div>
         </div>
         <div class="worker-actions">
           <button class="icon-btn" @click="openEditWorkerModal(w)">✏️</button>
-          <button v-if="w.deviceId" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство">📱</button>
+          <button v-if="w.device_id" class="icon-btn" @click="resetDevice(w)" title="Сбросить устройство">📱</button>
           <button class="icon-btn" @click="deleteWorker(w)" style="color:var(--danger);">🗑️</button>
           <label class="switch" style="margin-left:2px;">
-            <input type="checkbox" :checked="w.isActive !== false" @change="toggleWorkerActive(w)">
+            <input type="checkbox" :checked="w.is_active !== false" @change="toggleWorkerActive(w)">
             <span class="slider"></span>
           </label>
         </div>
@@ -665,27 +666,21 @@
   <div id="toast" class="toast"></div>
 </div>
 
-   <script>
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      document.getElementById('splash').style.display = 'none';
-    }, 1000);
-  });
-</script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-// ========== GITHUB CONFIG ==========
-const _e = [42,17,35,60,88,43,92,16,93,13,38,9,19,11,9,71,102,0,107,98,11,50,41,81,31,19,39,44,27,84,54,20,40,36,87,48,106,86,124,100];
-const _k = "MyScheduleSecret2026";
-const GITHUB_TOKEN = _e.map((b,i) => String.fromCharCode(b ^ _k.charCodeAt(i % _k.length))).join('');
+// Supabase configuration
+const SUPABASE_URL = 'https://qygiyryyqoumytflqcoh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z2l5cnl5cW91bXl0ZmxxY29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzQ3NzksImV4cCI6MjA5MzE1MDc3OX0.GZVJ_cgHWL_hX6m-q_dM4KLJsR1yCTMWQ4Npif0VAa8';
 
-const REPO_OWNER = 'spoiler038';
-const REPO_NAME = 'WorkSchedule';
-const BRANCH = 'main';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Constants
 const SUPER_ADMIN_PHONE = '79778700833';
-
 const WORKER_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#ca8a04', '#4f46e5'];
 
+// Utility functions
 function formatPhone(phone) {
   let c = String(phone || '').replace(/[^\d]/g, '');
   if (c.startsWith('8') && c.length === 11) c = '7' + c.slice(1);
@@ -702,57 +697,7 @@ function getDeviceId() {
   return id;
 }
 
-class GitHubDB {
-  constructor() {
-    this.baseUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`;
-    this.headers = {
-      'Authorization': `token ${GITHUB_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json'
-    };
-  }
-
-  async getFile(filename) {
-    try {
-      const url = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${filename}?t=${Date.now()}`;
-      const r = await fetch(url);
-      if (!r.ok) return null;
-      const text = await r.text();
-      return text ? JSON.parse(text) : null;
-    } catch { return null; }
-  }
-
-  async saveFile(filename, data) {
-    try {
-      let sha = null;
-      const getR = await fetch(`${this.baseUrl}/${filename}`, { headers: this.headers });
-      if (getR.status === 200) { const info = await getR.json(); sha = info.sha; }
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-      const body = { message: `Update ${filename}`, content, branch: BRANCH };
-      if (sha) body.sha = sha;
-      await fetch(`${this.baseUrl}/${filename}`, {
-        method: 'PUT',
-        headers: { ...this.headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    } catch (e) { console.error('saveFile:', filename, e); }
-  }
-
-  async ensureFilesExist() {
-    const files = ['workers.json', 'schedule.json', 'admin.json', 'unavailability.json'];
-    for (const file of files) {
-      const exists = await this.getFile(file);
-      if (!exists) {
-        const empty = file === 'admin.json' ? { password: '', phone: SUPER_ADMIN_PHONE, email: '' } : 
-                     file === 'workers.json' ? [] : {};
-        await this.saveFile(file, empty);
-      }
-    }
-  }
-}
-
-const db = new GitHubDB();
-
-const { createApp, ref, computed, onMounted } = Vue;
+const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
 
 createApp({
   setup() {
@@ -761,12 +706,14 @@ createApp({
     const loginPass = ref('');
     const loginError = ref('');
     const loading = ref(false);
+    const refreshing = ref(false);
     const showResetPasswordOption = ref(false);
     
     const workers = ref([]);
     const schedule = ref({});
     const unavailability = ref({});
     const adminEmail = ref('');
+    const adminPasswordHash = ref('');
     
     const currentMonth = ref(new Date());
     const availabilityMode = ref(false);
@@ -780,6 +727,7 @@ createApp({
     
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
+    let realtimeSubscription = null;
 
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
@@ -832,12 +780,11 @@ createApp({
 
     function buildDay(date, isCurrentMonth, isToday) {
       const ds = date.toISOString().slice(0,10);
-      const ids = schedule.value[ds] || [];
-      const ws = ids.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
+      const scheduleForDay = schedule.value[ds] || [];
+      const ws = scheduleForDay.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
     }
 
-    // Получить список недоступных сотрудников на день (с цветами)
     function getDayUnavailable(dateStr) {
       return Object.entries(unavailability.value)
         .filter(([_, dates]) => dates.includes(dateStr))
@@ -852,27 +799,22 @@ createApp({
       }));
     }
 
-    // Статистика месяца
     const workerStats = computed(() => {
       const year = currentMonth.value.getFullYear();
       const month = currentMonth.value.getMonth();
       const stats = {};
-      const unavailCount = {};
       
-      // Считаем смены
       for (let d = 1; d <= 31; d++) {
         const date = new Date(year, month, d);
         if (date.getMonth() !== month) continue;
         const ds = date.toISOString().slice(0, 10);
         
-        // Смены
         const ids = schedule.value[ds] || [];
         for (const id of ids) {
           if (!stats[id]) stats[id] = { shifts: 0, unavail: 0 };
           stats[id].shifts++;
         }
         
-        // Недоступность
         for (const [workerId, dates] of Object.entries(unavailability.value)) {
           if (dates.includes(ds)) {
             if (!stats[workerId]) stats[workerId] = { shifts: 0, unavail: 0 };
@@ -882,12 +824,12 @@ createApp({
       }
       
       return workers.value
-        .filter(w => stats[w.id])
+        .filter(w => stats[w.id] && (stats[w.id].shifts > 0 || stats[w.id].unavail > 0))
         .map(w => ({
           id: w.id,
           name: w.name,
-          shifts: stats[w.id].shifts,
-          unavailableDays: stats[w.id].unavail,
+          shifts: stats[w.id]?.shifts || 0,
+          unavailableDays: stats[w.id]?.unavail || 0,
           color: getWorkerColor(w.id)
         }))
         .sort((a, b) => b.shifts - a.shifts);
@@ -899,143 +841,454 @@ createApp({
       return '';
     }
 
-    async function clearUnavailability(workerId, dateStr) {
-      if (user.value.role !== 'admin') return;
-      if (!unavailability.value[workerId]) return;
-      const arr = unavailability.value[workerId];
-      const idx = arr.indexOf(dateStr);
-      if (idx > -1) { arr.splice(idx, 1); showToast('✅ Отметка снята', 'success'); }
-      if (!arr.length) delete unavailability.value[workerId];
-      await db.saveFile('unavailability.json', unavailability.value);
+    // ========== SUPABASE FUNCTIONS ==========
+    
+    async function loadAllData() {
+      await Promise.all([loadWorkers(), loadSchedule(), loadUnavailability(), loadAdmin()]);
     }
-
-    async function clearAllUnavailability() {
-  // Считаем общее количество отметок
-  let totalMarks = 0;
-  for (const dates of Object.values(unavailability.value)) {
-    totalMarks += dates.length;
-  }
-  
-  if (totalMarks === 0) {
-    showToast('Нет отметок для удаления', 'warning');
-    return;
-  }
-  
-  // Собираем информацию для отображения
-  const details = Object.entries(unavailability.value)
-    .filter(([_, dates]) => dates.length > 0)
-    .map(([workerId, dates]) => {
-      const w = workers.value.find(x => x.id === workerId);
-      return `👤 ${w ? w.name : 'Неизвестный'}: ${dates.length} дн.`;
-    })
-    .join('\n');
-  
-  showConfirmModal({
-    title: '🗑️ Снятие всех отметок',
-    message: `Будут сняты <b>все отметки недоступности</b> для всех сотрудников.\n\n📊 Всего отметок: <b>${totalMarks}</b>\n\n${details}\n\nЭто действие нельзя отменить.`,
-    confirmText: 'Снять все отметки',
-    confirmClass: 'btn-danger',
-    onConfirm: async () => {
-      unavailability.value = {};
-      await db.saveFile('unavailability.json', unavailability.value);
-      closeSettings();
-      showToast('✅ Все отметки сняты', 'success');
+    
+    async function loadWorkers() {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('*')
+        .order('name');
+      
+      if (error) {
+        console.error('Error loading workers:', error);
+        showToast('Ошибка загрузки сотрудников', 'error');
+        return;
+      }
+      workers.value = data || [];
     }
-  });
-}
-
-    async function loadData() {
-      try {
-        const [w, s, a, u] = await Promise.all([
-          db.getFile('workers.json'), db.getFile('schedule.json'),
-          db.getFile('admin.json'), db.getFile('unavailability.json')
-        ]);
-        workers.value = w || []; schedule.value = s || {};
-        unavailability.value = u || {};
-        if (a) adminEmail.value = a.email || '';
-      } catch(e) { console.error(e); }
+    
+    async function loadSchedule() {
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*');
+      
+      if (error) {
+        console.error('Error loading schedule:', error);
+        return;
+      }
+      
+      const scheduleMap = {};
+      if (data) {
+        data.forEach(item => {
+          if (!scheduleMap[item.date]) scheduleMap[item.date] = [];
+          scheduleMap[item.date].push(item.worker_id);
+        });
+      }
+      schedule.value = scheduleMap;
     }
-
+    
+    async function loadUnavailability() {
+      const { data, error } = await supabase
+        .from('unavailability')
+        .select('*');
+      
+      if (error) {
+        console.error('Error loading unavailability:', error);
+        return;
+      }
+      
+      const unavailMap = {};
+      if (data) {
+        data.forEach(item => {
+          if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
+          unavailMap[item.worker_id].push(item.date);
+        });
+      }
+      unavailability.value = unavailMap;
+    }
+    
+    async function loadAdmin() {
+      const { data, error } = await supabase
+        .from('admin')
+        .select('*')
+        .eq('phone', SUPER_ADMIN_PHONE)
+        .single();
+      
+      if (!error && data) {
+        adminEmail.value = data.email || '';
+        adminPasswordHash.value = data.password_hash || '';
+      }
+    }
+    
+    async function refreshData() {
+      if (refreshing.value) return;
+      refreshing.value = true;
+      showToast('🔄 Обновление...', 'warning');
+      await loadAllData();
+      showToast('✅ Данные обновлены', 'success');
+      refreshing.value = false;
+    }
+    
+    // Real-time subscriptions
+    function setupRealtimeSubscriptions() {
+      if (realtimeSubscription) return;
+      
+      realtimeSubscription = supabase
+        .channel('schedule-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+          loadSchedule();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'unavailability' }, () => {
+          loadUnavailability();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'workers' }, () => {
+          loadWorkers();
+        })
+        .subscribe();
+    }
+    
+    // ========== AUTH FUNCTIONS ==========
+    
     async function handleLogin() {
       loginError.value = '';
       const phone = formatPhone(loginPhone.value);
       if (!phone) { loginError.value = 'Введите номер телефона'; return; }
       loading.value = true;
+      
       try {
         if (phone === SUPER_ADMIN_PHONE) {
-          const data = await db.getFile('admin.json');
-          if (loginPass.value === 'RESET_PASSWORD') {
-            if (!data?.email) { loginError.value = '❌ Не указан email'; loading.value = false; return; }
-            const newPassword = Math.random().toString(36).slice(-6);
-            await db.saveFile('admin.json', { ...data, password: newPassword });
-            showToast('🔑 Новый пароль: ' + newPassword, 'warning');
-            loading.value = false; return;
-          }
-          if (!data?.password) {
+          // Админ логин
+          if (!adminPasswordHash.value) {
+            // Первый вход: устанавливаем пароль
             if (!loginPass.value || loginPass.value.length < 4) {
-              loginError.value = 'Придумайте пароль (мин. 4 символа)'; loading.value = false; return;
+              loginError.value = 'Придумайте пароль (мин. 4 символа)';
+              loading.value = false;
+              return;
             }
-            await db.saveFile('admin.json', { password: loginPass.value, phone, email: data?.email || '' });
+            
+            // Сохраняем пароль (в реальном приложении нужно хешировать!)
+            const { error } = await supabase
+              .from('admin')
+              .update({ password_hash: loginPass.value })
+              .eq('phone', SUPER_ADMIN_PHONE);
+            
+            if (error) throw error;
+            adminPasswordHash.value = loginPass.value;
             user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
             localStorage.setItem('ws_session', JSON.stringify(user.value));
-            await loadData(); showToast('✅ Пароль установлен!', 'success');
-          } else if (loginPass.value !== data.password) {
+            await loadAllData();
+            showToast('✅ Пароль установлен!', 'success');
+          } else if (loginPass.value !== adminPasswordHash.value) {
             let attempts = parseInt(localStorage.getItem('ws_admin_attempts') || '0');
-            attempts++; localStorage.setItem('ws_admin_attempts', attempts.toString());
+            attempts++;
+            localStorage.setItem('ws_admin_attempts', attempts.toString());
             const remaining = 3 - attempts;
-            if (remaining > 0) { loginError.value = `❌ Неверный пароль. Осталось: ${remaining}`; }
-            else {
+            if (remaining > 0) {
+              loginError.value = `❌ Неверный пароль. Осталось: ${remaining}`;
+            } else {
               loginError.value = '🔒 Превышено попыток!';
               showResetPasswordOption.value = true;
               localStorage.setItem('ws_admin_attempts', '0');
             }
-            loading.value = false; return;
+            loading.value = false;
+            return;
           } else {
             localStorage.setItem('ws_admin_attempts', '0');
             user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
             localStorage.setItem('ws_session', JSON.stringify(user.value));
-            await loadData(); showToast('👋 С возвращением!', 'success');
+            await loadAllData();
+            showToast('👋 С возвращением!', 'success');
           }
         } else {
-          const w = workers.value.find(x => x.phone === phone);
-          if (!w) { loginError.value = 'Номер не найден'; loading.value = false; return; }
-          if (!w.isActive) { loginError.value = 'Аккаунт отключен'; loading.value = false; return; }
-          if (w.deviceId && w.deviceId !== getDeviceId()) {
-            loginError.value = 'Другое устройство'; loading.value = false; return;
+          // Обычный сотрудник
+          const worker = workers.value.find(x => x.phone === phone);
+          if (!worker) {
+            loginError.value = 'Номер не найден';
+            loading.value = false;
+            return;
           }
-          if (!w.deviceId) { w.deviceId = getDeviceId(); await db.saveFile('workers.json', workers.value); }
-          user.value = { id: w.id, phone, role: w.role || 'worker', name: w.name };
+          if (!worker.is_active) {
+            loginError.value = 'Аккаунт отключен';
+            loading.value = false;
+            return;
+          }
+          if (worker.device_id && worker.device_id !== getDeviceId()) {
+            loginError.value = 'Другое устройство';
+            loading.value = false;
+            return;
+          }
+          if (!worker.device_id) {
+            const { error } = await supabase
+              .from('workers')
+              .update({ device_id: getDeviceId() })
+              .eq('id', worker.id);
+            if (error) throw error;
+            worker.device_id = getDeviceId();
+          }
+          user.value = { id: worker.id, phone, role: worker.role || 'worker', name: worker.name };
           localStorage.setItem('ws_session', JSON.stringify(user.value));
-          await loadData(); showToast(`👋 Здравствуйте, ${w.name}!`, 'success');
+          await loadAllData();
+          showToast(`👋 Здравствуйте, ${worker.name}!`, 'success');
         }
-        loginPhone.value = ''; loginPass.value = '';
-      } catch(e) { loginError.value = 'Ошибка сети'; }
+        loginPhone.value = '';
+        loginPass.value = '';
+        setupRealtimeSubscriptions();
+      } catch(e) {
+        console.error(e);
+        loginError.value = 'Ошибка сети';
+      }
       loading.value = false;
     }
-
+    
     async function resetAdminPassword() {
       const email = prompt('Введите email администратора:');
       if (!email) return;
-      const data = await db.getFile('admin.json');
-      if (data?.email === email) {
+      if (email === adminEmail.value) {
         loginPass.value = 'RESET_PASSWORD';
-        await handleLogin();
+        // Генерируем новый пароль
+        const newPassword = Math.random().toString(36).slice(-6);
+        const { error } = await supabase
+          .from('admin')
+          .update({ password_hash: newPassword })
+          .eq('phone', SUPER_ADMIN_PHONE);
+        if (!error) {
+          adminPasswordHash.value = newPassword;
+          showToast('🔑 Новый пароль: ' + newPassword, 'warning');
+          loginPass.value = newPassword;
+          await handleLogin();
+        }
         showResetPasswordOption.value = false;
-      } else { showToast('❌ Email не совпадает', 'error'); }
+      } else {
+        showToast('❌ Email не совпадает', 'error');
+      }
     }
-
+    
     function logout() {
       localStorage.removeItem('ws_session');
       user.value = null;
       showSettings.value = false;
+      if (realtimeSubscription) {
+        realtimeSubscription.unsubscribe();
+        realtimeSubscription = null;
+      }
+    }
+    
+    // ========== CRUD FUNCTIONS ==========
+    
+    async function saveWorker() {
+      const name = workerForm.value.name.trim();
+      const phone = formatPhone(workerForm.value.phone);
+      if (!name || !phone) {
+        showToast('Заполните поля', 'error');
+        return;
+      }
+      
+      if (editingWorker.value) {
+        const { error } = await supabase
+          .from('workers')
+          .update({ name, phone })
+          .eq('id', editingWorker.value.id);
+        if (error) {
+          showToast('Ошибка сохранения', 'error');
+          return;
+        }
+      } else {
+        const { error } = await supabase
+          .from('workers')
+          .insert([{ id: 'w_' + Date.now(), name, phone, role: 'worker', is_active: true }]);
+        if (error) {
+          showToast('Ошибка добавления', 'error');
+          return;
+        }
+      }
+      showWorkerModal.value = false;
+      showToast('Сохранено', 'success');
+      await loadWorkers();
+    }
+    
+    async function toggleWorkerActive(w) {
+      const { error } = await supabase
+        .from('workers')
+        .update({ is_active: !w.is_active })
+        .eq('id', w.id);
+      if (!error) {
+        w.is_active = !w.is_active;
+        showToast(w.is_active ? 'Активен' : 'Деактивирован', 'success');
+      }
+    }
+    
+    async function resetDevice(w) {
+      const { error } = await supabase
+        .from('workers')
+        .update({ device_id: null })
+        .eq('id', w.id);
+      if (!error) {
+        w.device_id = null;
+        showToast('Устройство сброшено', 'success');
+      }
+    }
+    
+    async function deleteWorker(w) {
+      showConfirmModal({
+        title: '🗑️ Удаление сотрудника',
+        message: `Вы уверены, что хотите удалить ${w.name}?`,
+        onConfirm: async () => {
+          const { error } = await supabase
+            .from('workers')
+            .delete()
+            .eq('id', w.id);
+          if (!error) {
+            showToast('Сотрудник удалён', 'success');
+            await loadWorkers();
+          }
+        }
+      });
+    }
+    
+    async function toggleSchedule(workerId, date) {
+      const isScheduled = (schedule.value[date] || []).includes(workerId);
+      
+      if (isScheduled) {
+        const { error } = await supabase
+          .from('schedule')
+          .delete()
+          .eq('date', date)
+          .eq('worker_id', workerId);
+        if (!error) showToast('Смена удалена', 'success');
+      } else {
+        const { error } = await supabase
+          .from('schedule')
+          .insert([{ date, worker_id: workerId }]);
+        if (!error) showToast('Смена добавлена', 'success');
+      }
+      await loadSchedule();
+    }
+    
+    function isScheduled(workerId, date) {
+      return (schedule.value[date] || []).includes(workerId);
+    }
+    
+    async function clearUnavailability(workerId, dateStr) {
+      if (user.value.role !== 'admin') return;
+      const { error } = await supabase
+        .from('unavailability')
+        .delete()
+        .eq('date', dateStr)
+        .eq('worker_id', workerId);
+      if (!error) {
+        showToast('✅ Отметка снята', 'success');
+        await loadUnavailability();
+      }
+    }
+    
+    async function clearAllUnavailability() {
+      let totalMarks = 0;
+      for (const dates of Object.values(unavailability.value)) {
+        totalMarks += dates.length;
+      }
+      
+      if (totalMarks === 0) {
+        showToast('Нет отметок для удаления', 'warning');
+        return;
+      }
+      
+      showConfirmModal({
+        title: '🗑️ Снятие всех отметок',
+        message: `Будут сняты все отметки недоступности (${totalMarks} шт.). Продолжить?`,
+        onConfirm: async () => {
+          const { error } = await supabase
+            .from('unavailability')
+            .delete()
+            .neq('id', 0);
+          if (!error) {
+            showToast('✅ Все отметки сняты', 'success');
+            await loadUnavailability();
+            closeSettings();
+          }
+        }
+      });
+    }
+    
+    async function saveAdminEmail() {
+      const { error } = await supabase
+        .from('admin')
+        .update({ email: adminEmail.value })
+        .eq('phone', SUPER_ADMIN_PHONE);
+      if (!error) {
+        showToast('Email сохранён', 'success');
+      }
+    }
+    
+    async function toggleUnavailability(dateStr) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(dateStr); target.setHours(0,0,0,0);
+      if (target < today) {
+        showToast('Нельзя изменить прошедший день', 'warning');
+        return;
+      }
+      
+      const userUnavail = unavailability.value[user.value.id] || [];
+      const isUnavailable = userUnavail.includes(dateStr);
+      
+      if (isUnavailable) {
+        const { error } = await supabase
+          .from('unavailability')
+          .delete()
+          .eq('date', dateStr)
+          .eq('worker_id', user.value.id);
+        if (!error) showToast('✅ День доступен', 'success');
+      } else {
+        const { error } = await supabase
+          .from('unavailability')
+          .insert([{ date: dateStr, worker_id: user.value.id }]);
+        if (!error) showToast('❌ День отмечен', 'warning');
+      }
+      await loadUnavailability();
+    }
+    
+    // ========== UI FUNCTIONS ==========
+    
+    function handleDayClick(day) {
+      if (!user.value) return;
+      if (availabilityMode.value && user.value.role === 'admin') {
+        // В режиме администратора — отмечаем недоступность для выбранного сотрудника
+        // Для простоты пока просто показываем сообщение
+        showToast('Выберите сотрудника в легенде', 'warning');
+        return;
+      }
+      if (user.value.role === 'worker') {
+        // Сотрудник отмечает свою недоступность
+        toggleUnavailability(day.dateStr);
+        return;
+      }
+      if (user.value.role === 'admin' && day.isCurrentMonth) {
+        selectedScheduleDate.value = day.dateStr;
+        showScheduleModal.value = true;
+      }
+    }
+    
+    function toggleAvailabilityMode() {
+      availabilityMode.value = !availabilityMode.value;
+      showToast(
+        availabilityMode.value ? '🟡 Режим отметок ВКЛЮЧЁН' : '🟢 Режим отметок выключен',
+        'warning'
+      );
+    }
+    
+    function callWorker(w) {
+      if (w.phone) window.location.href = 'tel:' + w.phone;
+    }
+    
+    function toggleTheme() {
+      isDark.value = !isDark.value;
+      document.body.className = isDark.value ? 'dark' : 'light';
+      localStorage.setItem('ws_theme', isDark.value ? 'dark' : 'light');
     }
     
     function closeSettings() { showSettings.value = false; }
-
+    function openSettings() { showSettings.value = true; }
+    function openAddWorkerModal() { editingWorker.value = null; workerForm.value = { name: '', phone: '' }; showWorkerModal.value = true; }
+    function openEditWorkerModal(w) { editingWorker.value = w; workerForm.value = { name: w.name, phone: w.phone }; showWorkerModal.value = true; }
+    function openSetScheduleModal() { selectedScheduleDate.value = new Date().toISOString().slice(0,10); showScheduleModal.value = true; }
+    
     function prevMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1); }
     function nextMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1); }
     function goToday() { currentMonth.value = new Date(); }
-
+    
     function onTouchStart(e) { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; touchStartTime = Date.now(); }
     function onTouchMove(e) {}
     function onTouchEnd(e) {
@@ -1046,114 +1299,7 @@ createApp({
         dx < 0 ? nextMonth() : prevMonth();
       }
     }
-
-    function handleDayClick(day) {
-      if (!user.value) return;
-      if (availabilityMode.value) {
-        toggleUnavailability(day.dateStr);
-        return;
-      }
-      if (user.value.role === 'admin' && day.isCurrentMonth) {
-        selectedScheduleDate.value = day.dateStr;
-        showScheduleModal.value = true;
-      }
-    }
-
-    function toggleUnavailability(dateStr) {
-      const today = new Date(); today.setHours(0,0,0,0);
-      const target = new Date(dateStr); target.setHours(0,0,0,0);
-      if (target < today) { showToast('Нельзя изменить прошедший день', 'warning'); return; }
-      
-      if (!unavailability.value[user.value.id]) unavailability.value[user.value.id] = [];
-      const arr = unavailability.value[user.value.id];
-      const idx = arr.indexOf(dateStr);
-      idx > -1 ? arr.splice(idx, 1) : arr.push(dateStr);
-      
-      // Если массив пуст — удаляем ключ
-      if (arr.length === 0) delete unavailability.value[user.value.id];
-      
-      db.saveFile('unavailability.json', unavailability.value);
-      showToast(idx > -1 ? '✅ День доступен' : '❌ День отмечен', 'warning');
-    }
-
-    function toggleAvailabilityMode() {
-      availabilityMode.value = !availabilityMode.value;
-      showToast(
-        availabilityMode.value ? '🟡 Режим отметок ВКЛЮЧЁН — нажимайте на дни' : '🟢 Режим отметок выключен', 
-        'warning'
-      );
-    }
-
-    function openAddWorkerModal() { editingWorker.value = null; workerForm.value = { name: '', phone: '' }; showWorkerModal.value = true; }
-    function openEditWorkerModal(w) { editingWorker.value = w; workerForm.value = { name: w.name, phone: w.phone }; showWorkerModal.value = true; }
     
-    async function saveWorker() {
-      const n = workerForm.value.name.trim(), p = formatPhone(workerForm.value.phone);
-      if (!n || !p) { showToast('Заполните поля', 'error'); return; }
-      if (editingWorker.value) {
-        const i = workers.value.findIndex(x => x.id === editingWorker.value.id);
-        if (i > -1) { workers.value[i].name = n; workers.value[i].phone = p; }
-      } else {
-        workers.value.push({ id: 'w_' + Date.now(), name: n, phone: p, role: 'worker', isActive: true, deviceId: null });
-      }
-      await db.saveFile('workers.json', workers.value);
-      showWorkerModal.value = false;
-      showToast('Сохранено', 'success');
-    }
-
-    async function toggleWorkerActive(w) { w.isActive = !w.isActive; await db.saveFile('workers.json', workers.value); }
-    async function resetDevice(w) { w.deviceId = null; await db.saveFile('workers.json', workers.value); showToast('Устройство сброшено', 'success'); }
-    
-    async function deleteWorker(w) {
-  showConfirmModal({
-    title: '🗑️ Удаление сотрудника',
-    message: `Вы уверены, что хотите удалить сотрудника?\n\n👤 <b>${w.name}</b>\n📱 ${w.phone}\n\nЭто действие нельзя отменить.`,
-    confirmText: 'Удалить',
-    confirmClass: 'btn-danger',
-    onConfirm: async () => {
-      workers.value = workers.value.filter(x => x.id !== w.id);
-      for (let d in schedule.value) {
-        schedule.value[d] = schedule.value[d].filter(id => id !== w.id);
-        if (!schedule.value[d].length) delete schedule.value[d];
-      }
-      delete unavailability.value[w.id];
-      await db.saveFile('workers.json', workers.value);
-      await db.saveFile('schedule.json', schedule.value);
-      await db.saveFile('unavailability.json', unavailability.value);
-      showToast('✅ Сотрудник удалён', 'success');
-    }
-  });
-}
-
-    function openSetScheduleModal() { selectedScheduleDate.value = new Date().toISOString().slice(0,10); showScheduleModal.value = true; }
-    function isScheduled(wid, d) { return (schedule.value[d] || []).includes(wid); }
-    
-    async function toggleSchedule(wid, d) {
-      if (!schedule.value[d]) schedule.value[d] = [];
-      const arr = schedule.value[d], idx = arr.indexOf(wid);
-      idx > -1 ? arr.splice(idx, 1) : arr.push(wid);
-      if (!arr.length) delete schedule.value[d];
-      schedule.value = { ...schedule.value };
-      await db.saveFile('schedule.json', schedule.value);
-    }
-
-    function callWorker(w) { if (w.phone) window.location.href = 'tel:' + w.phone; }
-
-    function toggleTheme() {
-      isDark.value = !isDark.value;
-      document.body.className = isDark.value ? 'dark' : 'light';
-      localStorage.setItem('ws_theme', isDark.value ? 'dark' : 'light');
-    }
-
-    function openSettings() { showSettings.value = true; }
-    
-    async function saveAdminEmail() {
-      const d = await db.getFile('admin.json') || {};
-      d.email = adminEmail.value;
-      await db.saveFile('admin.json', d);
-      showToast('Email сохранён', 'success');
-    }
-
     function showToast(msg, type = '') {
       const el = document.getElementById('toast');
       if (!el) return;
@@ -1163,77 +1309,77 @@ createApp({
       el.style.display = 'block';
       toastTimer = setTimeout(() => { el.style.display = 'none'; toastTimer = null; }, 3000);
     }
-
+    
+    function showConfirmModal({ title, message, onConfirm }) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;';
+      
+      const modal = document.createElement('div');
+      modal.style.cssText = 'background:var(--card);border-radius:20px;padding:24px;max-width:340px;width:100%;border:1px solid var(--border);';
+      modal.innerHTML = `
+        <div style="font-size:40px;text-align:center;margin-bottom:12px;">⚠️</div>
+        <div class="modal-title" style="text-align:center;">${title}</div>
+        <div class="modal-text" style="text-align:center;">${message}</div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button id="confirm-cancel" class="btn btn-secondary" style="flex:1;">Отмена</button>
+          <button id="confirm-ok" class="btn btn-primary" style="flex:1;">Подтвердить</button>
+        </div>
+      `;
+      
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      
+      const close = () => document.body.removeChild(overlay);
+      modal.querySelector('#confirm-cancel').addEventListener('click', close);
+      modal.querySelector('#confirm-ok').addEventListener('click', () => {
+        close();
+        if (onConfirm) onConfirm();
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    }
+    
+    // Hide splash screen
+    function hideSplash() {
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => { splash.style.display = 'none'; }, 500);
+      }
+    }
+    
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
-      await db.ensureFilesExist();
-      await loadData();
+      await loadAllData();
+      setupRealtimeSubscriptions();
       
       const saved = localStorage.getItem('ws_session');
       if (saved) {
         try {
           const sess = JSON.parse(saved);
           if (sess.id === 'admin') {
-            const data = await db.getFile('admin.json');
-            if (data?.phone === SUPER_ADMIN_PHONE) {
-              user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
-            }
+            user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
           } else {
             const w = workers.value.find(x => x.id === sess.id);
-            if (w && w.isActive !== false && (!w.deviceId || w.deviceId === getDeviceId())) {
+            if (w && w.is_active !== false && (!w.device_id || w.device_id === getDeviceId())) {
               user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
-            } else { localStorage.removeItem('ws_session'); }
+            } else {
+              localStorage.removeItem('ws_session');
+            }
           }
         } catch { localStorage.removeItem('ws_session'); }
       }
+      
+      setTimeout(hideSplash, 800);
     });
-
-    function showConfirmModal({ title, message, confirmText, confirmClass, onConfirm }) {
-  // Создаём оверлей
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;';
-  
-  // Создаём модальное окно
-  const modal = document.createElement('div');
-  modal.style.cssText = 'background:var(--card);border-radius:20px;padding:24px;max-width:340px;width:100%;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.3);';
-  modal.innerHTML = `
-    <div style="font-size:40px;text-align:center;margin-bottom:12px;">⚠️</div>
-    <div class="modal-title" style="text-align:center;">${title}</div>
-    <div class="modal-text" style="text-align:center;white-space:pre-line;">${message}</div>
-    <div style="display:flex;gap:10px;margin-top:16px;">
-      <button id="confirm-cancel" class="btn btn-secondary" style="flex:1;">Отмена</button>
-      <button id="confirm-ok" class="btn ${confirmClass || 'btn-primary'}" style="flex:1;">${confirmText || 'Подтвердить'}</button>
-    </div>
-  `;
-  
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-  
-  // Обработчики
-  const close = () => {
-    document.body.removeChild(overlay);
-    document.removeEventListener('keydown', onKeyDown);
-  };
-  
-  const onKeyDown = (e) => {
-    if (e.key === 'Escape') close();
-  };
-  
-  document.addEventListener('keydown', onKeyDown);
-  
-  modal.querySelector('#confirm-cancel').addEventListener('click', close);
-  modal.querySelector('#confirm-ok').addEventListener('click', () => {
-    close();
-    if (onConfirm) onConfirm();
-  });
-  
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-}
-
+    
+    onUnmounted(() => {
+      if (realtimeSubscription) {
+        realtimeSubscription.unsubscribe();
+      }
+    });
+    
     return {
-      user, loginPhone, loginPass, loginError, loading, needAdminPassword,
+      user, loginPhone, loginPass, loginError, loading, refreshing, needAdminPassword,
       workers, schedule, unavailability, adminEmail,
       currentMonth, currentMonthTitle, calendarDays,
       availabilityMode,
@@ -1241,14 +1387,14 @@ createApp({
       editingWorker, workerForm, selectedScheduleDate,
       isDark, showResetPasswordOption,
       handleLogin, resetAdminPassword, logout, closeSettings,
-      prevMonth, nextMonth, goToday,
+      prevMonth, nextMonth, goToday, refreshData,
       onTouchStart, onTouchMove, onTouchEnd,
       handleDayClick, toggleUnavailability,
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
       openSetScheduleModal, isScheduled, toggleSchedule,
-      callWorker, showConfirmModal,
+      callWorker,
       saveAdminEmail, openSettings, toggleTheme, showToast,
       getWorkerColor, getDayUnavailable, getDayUnavailableInfo,
       clearUnavailability, clearAllUnavailability,
