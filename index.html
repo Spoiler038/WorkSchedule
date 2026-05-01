@@ -5,6 +5,7 @@
   <title>График работы</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="График">
@@ -13,7 +14,6 @@
   <link rel="apple-touch-icon" href="icons/icon-192x192.png">
 
 <style>
-    /* Критические стили - выполняются мгновенно */
     #splash {
       position: fixed;
       top: 0;
@@ -206,7 +206,6 @@
       flex-shrink: 0;
     }
 
-    /* Точки недоступности */
     .unavail-dots {
       position: absolute;
       top: 2px;
@@ -231,7 +230,6 @@
       z-index: 4;
     }
 
-    /* Легенда */
     .legend-section {
       flex: 1;
       overflow-y: auto;
@@ -276,7 +274,6 @@
       margin-left: 4px;
     }
 
-    /* Нижняя панель */
     .bottom-bar {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -317,7 +314,6 @@
     }
     body.light .month-title { color: #020617; }
 
-    /* Toast */
     .toast {
       position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
       background: var(--card); color: var(--text);
@@ -339,7 +335,6 @@
       100% { opacity: 0; top: 50px; }
     }
 
-    /* Sheet */
     .sheet {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.5);
@@ -459,7 +454,6 @@
 
     [v-cloak] { display: none; }
     
-    /* Кнопка обновления */
     .refresh-btn {
       animation: spin 0.5s ease-in-out;
     }
@@ -474,7 +468,6 @@
   </div>
 
 <div id="app" v-cloak>
-  <!-- Header -->
   <div class="app-header">
     <div class="header-left">
       <button v-if="user" class="icon-btn" @click="goToday" title="Сегодня">🏠</button>
@@ -493,7 +486,6 @@
   </div>
 
   <div class="container">
-    <!-- Login -->
     <div v-if="!user" style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;">
       <div class="modal" style="max-width:340px;width:100%;">
         <div class="modal-title">🔐 Вход</div>
@@ -513,11 +505,9 @@
       </div>
     </div>
 
-    <!-- Main Content -->
     <template v-else>
       <div class="main-content" 
            @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-        <!-- Calendar Section -->
         <div class="calendar-section">
           <div class="calendar-header">
             <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
@@ -529,7 +519,6 @@
                             'today': day.isToday }]"
                  @click="handleDayClick(day)">
               <div class="day-number">{{ day.dayNum }}</div>
-              <!-- Точки недоступности -->
               <div class="unavail-dots" v-if="getDayUnavailable(day.dateStr).length > 0">
                 <div v-for="info in getDayUnavailableInfo(day.dateStr)" :key="info.workerId"
                      class="unavail-dot"
@@ -538,7 +527,6 @@
                      @click.stop="user.role === 'admin' && clearUnavailability(info.workerId, day.dateStr)">
                 </div>
               </div>
-              <!-- Сотрудники на смене -->
               <div class="day-workers">
                 <div v-for="w in day.workers" :key="w.id"
                      class="worker-chip"
@@ -551,7 +539,6 @@
           </div>
         </div>
 
-        <!-- Legend -->
         <div class="legend-section">
           <div v-if="workerStats.length === 0" class="empty-state">Нет данных за этот месяц</div>
           <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
@@ -569,7 +556,6 @@
     </template>
   </div>
 
-  <!-- Footer Navigation -->
   <div class="bottom-bar" v-if="user">
     <button class="nav-btn" @click="prevMonth">←</button>
     <span class="month-title">{{ currentMonthTitle }}</span>
@@ -581,7 +567,6 @@
     </button>
   </div>
 
-  <!-- Settings Sheet -->
   <div :class="['sheet', { active: showSettings }]" @click.self="closeSettings">
     <div class="sheet-content">
       <div class="settings-header">
@@ -634,7 +619,6 @@
     </div>
   </div>
 
-  <!-- Worker Modal -->
   <div :class="['modal-overlay', { active: showWorkerModal }]" @click.self="showWorkerModal = false">
     <div class="modal">
       <div class="modal-title">{{ editingWorker ? '✏️ Редактировать' : '➕ Новый сотрудник' }}</div>
@@ -647,7 +631,6 @@
     </div>
   </div>
 
-  <!-- Schedule Modal -->
   <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="showScheduleModal = false">
     <div class="modal" style="max-height:80vh;overflow-y:auto;">
       <div class="modal-title">📝 Редактировать график</div>
@@ -697,7 +680,6 @@ function getDeviceId() {
   return id;
 }
 
-// Функции для работы с датами и часовыми поясами
 function getLocalToday() {
   const now = new Date();
   const year = now.getFullYear();
@@ -719,6 +701,7 @@ function utcDateToLocal(utcDateStr) {
   return `${year}-${month}-${day}`;
 }
 
+// Vue app
 const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
 
 createApp({
@@ -863,8 +846,7 @@ createApp({
       return '';
     }
 
-    // ========== SUPABASE FUNCTIONS ==========
-    
+    // Supabase functions
     async function loadAllData() {
       await Promise.all([loadWorkers(), loadSchedule(), loadUnavailability(), loadAdmin()]);
     }
@@ -964,8 +946,7 @@ createApp({
         .subscribe();
     }
     
-    // ========== AUTH FUNCTIONS ==========
-    
+    // Auth functions
     async function handleLogin() {
       loginError.value = '';
       const phone = formatPhone(loginPhone.value);
@@ -1084,8 +1065,7 @@ createApp({
       }
     }
     
-    // ========== CRUD FUNCTIONS ==========
-    
+    // CRUD functions
     async function saveWorker() {
       const name = workerForm.value.name.trim();
       const phone = formatPhone(workerForm.value.phone);
@@ -1259,8 +1239,7 @@ createApp({
       await loadUnavailability();
     }
     
-    // ========== UI FUNCTIONS ==========
-    
+    // UI functions
     function handleDayClick(day) {
       if (!user.value) return;
       if (availabilityMode.value && user.value.role === 'admin') {
