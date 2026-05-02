@@ -883,7 +883,7 @@ createApp({
     }
     
     async function loadWorkers() {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('workers')
         .select('*')
         .order('name');
@@ -897,7 +897,7 @@ createApp({
     }
     
     async function loadSchedule() {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('schedule')
         .select('*');
       
@@ -918,7 +918,7 @@ createApp({
     }
     
     async function loadUnavailability() {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('unavailability')
         .select('*');
       
@@ -939,7 +939,7 @@ createApp({
     }
     
     async function loadAdmin() {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('admin')
         .select('*')
         .eq('phone', SUPER_ADMIN_PHONE)
@@ -963,7 +963,7 @@ createApp({
     function setupRealtimeSubscriptions() {
       if (realtimeSubscription) return;
       
-      realtimeSubscription = supabase
+      realtimeSubscription = db
         .channel('schedule-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
           loadSchedule();
@@ -993,7 +993,7 @@ createApp({
               return;
             }
             
-            const { error } = await supabase
+            const { error } = await db
               .from('admin')
               .update({ password_hash: loginPass.value })
               .eq('phone', SUPER_ADMIN_PHONE);
@@ -1043,7 +1043,7 @@ createApp({
             return;
           }
           if (!worker.device_id) {
-            const { error } = await supabase
+            const { error } = await db
               .from('workers')
               .update({ device_id: getDeviceId() })
               .eq('id', worker.id);
@@ -1070,7 +1070,7 @@ createApp({
       if (!email) return;
       if (email === adminEmail.value) {
         const newPassword = Math.random().toString(36).slice(-6);
-        const { error } = await supabase
+        const { error } = await db
           .from('admin')
           .update({ password_hash: newPassword })
           .eq('phone', SUPER_ADMIN_PHONE);
@@ -1106,7 +1106,7 @@ createApp({
       }
       
       if (editingWorker.value) {
-        const { error } = await supabase
+        const { error } = await db
           .from('workers')
           .update({ name, phone })
           .eq('id', editingWorker.value.id);
@@ -1115,7 +1115,7 @@ createApp({
           return;
         }
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('workers')
           .insert([{ id: 'w_' + Date.now(), name, phone, role: 'worker', is_active: true }]);
         if (error) {
@@ -1129,7 +1129,7 @@ createApp({
     }
     
     async function toggleWorkerActive(w) {
-      const { error } = await supabase
+      const { error } = await db
         .from('workers')
         .update({ is_active: !w.is_active })
         .eq('id', w.id);
@@ -1140,7 +1140,7 @@ createApp({
     }
     
     async function resetDevice(w) {
-      const { error } = await supabase
+      const { error } = await db
         .from('workers')
         .update({ device_id: null })
         .eq('id', w.id);
@@ -1155,7 +1155,7 @@ createApp({
         title: '🗑️ Удаление сотрудника',
         message: `Вы уверены, что хотите удалить ${w.name}?`,
         onConfirm: async () => {
-          const { error } = await supabase
+          const { error } = await db
             .from('workers')
             .delete()
             .eq('id', w.id);
@@ -1172,14 +1172,14 @@ createApp({
       const utcDate = localDateToUTC(date);
       
       if (isScheduled) {
-        const { error } = await supabase
+        const { error } = await db
           .from('schedule')
           .delete()
           .eq('date', utcDate)
           .eq('worker_id', workerId);
         if (!error) showToast('Смена удалена', 'success');
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('schedule')
           .insert([{ date: utcDate, worker_id: workerId }]);
         if (!error) showToast('Смена добавлена', 'success');
@@ -1194,7 +1194,7 @@ createApp({
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
       const utcDate = localDateToUTC(dateStr);
-      const { error } = await supabase
+      const { error } = await db
         .from('unavailability')
         .delete()
         .eq('date', utcDate)
@@ -1220,7 +1220,7 @@ createApp({
         title: '🗑️ Снятие всех отметок',
         message: `Будут сняты все отметки недоступности (${totalMarks} шт.). Продолжить?`,
         onConfirm: async () => {
-          const { error } = await supabase
+          const { error } = await db
             .from('unavailability')
             .delete()
             .neq('id', 0);
@@ -1234,7 +1234,7 @@ createApp({
     }
     
     async function saveAdminEmail() {
-      const { error } = await supabase
+      const { error } = await db
         .from('admin')
         .update({ email: adminEmail.value })
         .eq('phone', SUPER_ADMIN_PHONE);
@@ -1255,14 +1255,14 @@ createApp({
       const utcDate = localDateToUTC(dateStr);
       
       if (isUnavailable) {
-        const { error } = await supabase
+        const { error } = await db
           .from('unavailability')
           .delete()
           .eq('date', utcDate)
           .eq('worker_id', user.value.id);
         if (!error) showToast('✅ День доступен', 'success');
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('unavailability')
           .insert([{ date: utcDate, worker_id: user.value.id }]);
         if (!error) showToast('❌ День отмечен', 'warning');
