@@ -230,6 +230,12 @@
       z-index: 4;
     }
 
+    /* Подсветка дней которые сотрудник отметил как недоступные */
+    .day-cell.unavail-self {
+      box-shadow: inset 0 0 0 2px var(--danger);
+      background: rgba(220, 38, 38, 0.1) !important;
+    }
+
     .legend-section {
       flex: 1;
       overflow-y: auto;
@@ -516,7 +522,8 @@
             <div v-for="day in calendarDays" :key="day.dateStr"
                  :class="['day-cell', 
                           { 'other-month': !day.isCurrentMonth, 
-                            'today': day.isToday }]"
+                            'today': day.isToday,
+                            'unavail-self': user.role === 'worker' && isUnavailSelf(day.dateStr) }]"
                  @click="handleDayClick(day)">
               <div class="day-number">{{ day.dayNum }}</div>
               <div class="unavail-dots" v-if="getDayUnavailable(day.dateStr).length > 0">
@@ -540,6 +547,11 @@
         </div>
 
         <div class="legend-section">
+          <!-- Баннер активного режима отметок для сотрудника -->
+          <div v-if="user.role === 'worker' && availabilityMode"
+               style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.4);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#f87171;text-align:center;">
+            🔴 Режим отметок включён — нажмите на день чтобы отметить/снять недоступность
+          </div>
           <div v-if="workerStats.length === 0" class="empty-state">Нет данных за этот месяц</div>
           <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
             <div class="legend-name">
@@ -560,10 +572,17 @@
     <button class="nav-btn" @click="prevMonth">←</button>
     <span class="month-title">{{ currentMonthTitle }}</span>
     <button class="nav-btn" @click="nextMonth">→</button>
-    <button v-if="user.role === 'admin'" class="nav-btn" 
-            :style="{ background: availabilityMode ? 'var(--danger)' : 'var(--success)' }"
+    <!-- Для сотрудника: кнопка включения/выключения режима отметок -->
+    <button v-if="user.role === 'worker'" class="nav-btn"
+            :style="{ background: availabilityMode ? 'var(--danger)' : '#64748b' }"
             @click="toggleAvailabilityMode">
-      {{ availabilityMode ? '🔴' : '🟢' }}
+      {{ availabilityMode ? '🔴 Откл.' : '📌 Отметки' }}
+    </button>
+    <!-- Для админа: кнопка открытия графика -->
+    <button v-if="user.role === 'admin'" class="nav-btn"
+            :style="{ background: 'var(--primary)' }"
+            @click="openSetScheduleModal">
+      📝 График
     </button>
   </div>
 
@@ -653,11 +672,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Supabase configuration - ТОЛЬКО ОДНО ОБЪЯВЛЕНИЕ
+// Supabase configuration
+// ИСПРАВЛЕНИЕ: деструктурируем createClient чтобы не конфликтовало с window.supabase
+const { createClient } = window.supabase;
 const SUPABASE_URL = 'https://qygiyryyqoumytflqcoh.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z2l5cnl5cW91bXl0ZmxxY29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzQ3NzksImV4cCI6MjA5MzE1MDc3OX0.GZVJ_cgHWL_hX6m-q_dM4KLJsR1yCTMWQ4Npif0VAa8';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Constants
 const SUPER_ADMIN_PHONE = '79778700833';
@@ -788,6 +809,17 @@ createApp({
       const scheduleForDay = schedule.value[ds] || [];
       const ws = scheduleForDay.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
+    }
+
+    // Проверяет, отметил ли текущий сотрудник этот день как недоступный
+    function isUnavailSelf(dateStr) {
+      if (!user.value) return false;
+      return (unavailability.value[user.value.id] || []).includes(dateStr);
+    }
+
+    function openSetScheduleModal() {
+      selectedScheduleDate.value = new Date().toISOString().slice(0,10);
+      showScheduleModal.value = true;
     }
 
     function getDayUnavailable(dateStr) {
@@ -1242,14 +1274,17 @@ createApp({
     // UI functions
     function handleDayClick(day) {
       if (!user.value) return;
-      if (availabilityMode.value && user.value.role === 'admin') {
-        showToast('Выберите сотрудника в легенде', 'warning');
-        return;
-      }
+
       if (user.value.role === 'worker') {
-        toggleUnavailability(day.dateStr);
+        // Сотрудник отмечает недоступность ТОЛЬКО когда режим отметок включён
+        if (availabilityMode.value) {
+          toggleUnavailability(day.dateStr);
+        } else {
+          showToast('Включите режим отметок (кнопка ниже)', 'warning');
+        }
         return;
       }
+
       if (user.value.role === 'admin' && day.isCurrentMonth) {
         selectedScheduleDate.value = day.dateStr;
         showScheduleModal.value = true;
@@ -1278,7 +1313,6 @@ createApp({
     function openSettings() { showSettings.value = true; }
     function openAddWorkerModal() { editingWorker.value = null; workerForm.value = { name: '', phone: '' }; showWorkerModal.value = true; }
     function openEditWorkerModal(w) { editingWorker.value = w; workerForm.value = { name: w.name, phone: w.phone }; showWorkerModal.value = true; }
-    function openSetScheduleModal() { selectedScheduleDate.value = new Date().toISOString().slice(0,10); showScheduleModal.value = true; }
     
     function prevMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() - 1, 1); }
     function nextMonth() { currentMonth.value = new Date(currentMonth.value.getFullYear(), currentMonth.value.getMonth() + 1, 1); }
@@ -1392,7 +1426,7 @@ createApp({
       saveAdminEmail, openSettings, toggleTheme, showToast,
       getWorkerColor, getDayUnavailable, getDayUnavailableInfo,
       clearUnavailability, clearAllUnavailability,
-      workerStats, getShiftEnding
+      workerStats, getShiftEnding, isUnavailSelf
     };
   }
 }).mount('#app');
