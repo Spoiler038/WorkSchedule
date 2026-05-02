@@ -158,7 +158,7 @@
 
     .day-cell {
       background: var(--card);
-      aspect-ratio: 1 / 1;
+      height: 72px;
       padding: 2px;
       cursor: pointer;
       display: flex;
@@ -547,10 +547,18 @@
         </div>
 
         <div class="legend-section">
-          <!-- Баннер активного режима отметок для сотрудника -->
-          <div v-if="user.role === 'worker' && availabilityMode"
-               style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.4);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#f87171;text-align:center;">
-            🔴 Режим отметок включён — нажмите на день чтобы отметить/снять недоступность
+          <!-- Статус режима отметок для сотрудника -->
+          <div v-if="user.role === 'worker'"
+               :style="{
+                 background: availabilityMode ? 'rgba(220,38,38,0.12)' : 'rgba(22,163,74,0.08)',
+                 border: availabilityMode ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(22,163,74,0.3)',
+                 borderRadius: '10px', padding: '8px 10px', marginBottom: '8px',
+                 fontSize: '12px',
+                 color: availabilityMode ? '#f87171' : '#86efac',
+                 textAlign: 'center'
+               }">
+            <span v-if="availabilityMode">🔴 Нажмите на день чтобы отметить/снять недоступность</span>
+            <span v-else>⚪ Режим отметок выключен администратором</span>
           </div>
           <div v-if="workerStats.length === 0" class="empty-state">Нет данных за этот месяц</div>
           <div v-for="stat in workerStats" :key="stat.id" class="legend-item">
@@ -578,11 +586,11 @@
             @click="toggleAvailabilityMode">
       {{ availabilityMode ? '🔴 Откл.' : '📌 Отметки' }}
     </button>
-    <!-- Для админа: кнопка открытия графика -->
+    <!-- Для админа: кнопка разрешения/запрета режима отметок сотрудникам -->
     <button v-if="user.role === 'admin'" class="nav-btn"
-            :style="{ background: 'var(--primary)' }"
-            @click="openSetScheduleModal">
-      📝 График
+            :style="{ background: availabilityMode ? '#dc2626' : '#16a34a' }"
+            @click="toggleAvailabilityMode">
+      {{ availabilityMode ? '🔴 Режим вкл.' : '🟢 Разрешить отметки' }}
     </button>
   </div>
 
@@ -948,6 +956,8 @@ createApp({
       if (!error && data) {
         adminEmail.value = data.email || '';
         adminPasswordHash.value = data.password_hash || '';
+        // Загружаем глобальный режим отметок
+        availabilityMode.value = data.availability_mode === true;
       }
     }
     
@@ -973,6 +983,21 @@ createApp({
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'workers' }, () => {
           loadWorkers();
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin' }, (payload) => {
+          // Синхронизируем режим отметок для всех устройств
+          if (payload.new && payload.new.phone === SUPER_ADMIN_PHONE) {
+            const newMode = payload.new.availability_mode === true;
+            if (availabilityMode.value !== newMode) {
+              availabilityMode.value = newMode;
+              if (user.value?.role === 'worker') {
+                showToast(
+                  newMode ? '📌 Режим отметок включён — отметьте дни когда не можете выйти' : '✅ Режим отметок закрыт',
+                  newMode ? 'warning' : 'success'
+                );
+              }
+            }
+          }
         })
         .subscribe();
     }
@@ -1275,11 +1300,10 @@ createApp({
       if (!user.value) return;
 
       if (user.value.role === 'worker') {
-        // Сотрудник отмечает недоступность ТОЛЬКО когда режим отметок включён
         if (availabilityMode.value) {
           toggleUnavailability(day.dateStr);
         } else {
-          showToast('Включите режим отметок (кнопка ниже)', 'warning');
+          showToast('Режим отметок сейчас выключен', 'warning');
         }
         return;
       }
@@ -1290,10 +1314,24 @@ createApp({
       }
     }
     
-    function toggleAvailabilityMode() {
-      availabilityMode.value = !availabilityMode.value;
+    async function toggleAvailabilityMode() {
+      const newVal = !availabilityMode.value;
+
+      if (user.value.role === 'admin') {
+        // Админ переключает глобальный режим — сохраняем в БД
+        const { error } = await db
+          .from('admin')
+          .update({ availability_mode: newVal })
+          .eq('phone', SUPER_ADMIN_PHONE);
+        if (error) {
+          showToast('Ошибка сохранения', 'error');
+          return;
+        }
+      }
+
+      availabilityMode.value = newVal;
       showToast(
-        availabilityMode.value ? '🟡 Режим отметок ВКЛЮЧЁН' : '🟢 Режим отметок выключен',
+        newVal ? '🟡 Режим отметок ВКЛЮЧЁН — сотрудники могут отмечать дни' : '🟢 Режим отметок выключен',
         'warning'
       );
     }
