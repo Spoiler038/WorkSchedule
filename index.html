@@ -25,6 +25,7 @@
       justify-content: center;
       align-items: center;
       z-index: 99999;
+      transition: opacity 0.4s;
     }
     
     .splash-content {
@@ -885,79 +886,93 @@ createApp({
       return '';
     }
 
+    // Утилита: запрос с таймаутом — не даём зависнуть на телефоне
+    function withTimeout(promise, ms = 8000) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+      ]);
+    }
+
     // Supabase functions
     async function loadAllData() {
-      await Promise.all([loadWorkers(), loadSchedule(), loadUnavailability(), loadAdmin()]);
+      // Promise.allSettled — один сбой не блокирует остальные
+      await Promise.allSettled([
+        loadWorkers(),
+        loadSchedule(),
+        loadUnavailability(),
+        loadAdmin()
+      ]);
     }
     
     async function loadWorkers() {
-      const { data, error } = await db
-        .from('workers')
-        .select('*')
-        .order('name');
-      
-      if (error) {
-        console.error('Error loading workers:', error);
-        showToast('Ошибка загрузки сотрудников', 'error');
-        return;
+      try {
+        const { data, error } = await withTimeout(
+          db.from('workers').select('*').order('name')
+        );
+        if (error) { console.error('loadWorkers:', error); return; }
+        workers.value = data || [];
+      } catch(e) {
+        console.error('loadWorkers failed:', e.message);
       }
-      workers.value = data || [];
     }
     
     async function loadSchedule() {
-      const { data, error } = await db
-        .from('schedule')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading schedule:', error);
-        return;
+      try {
+        const { data, error } = await withTimeout(
+          db.from('schedule').select('*')
+        );
+        if (error) { console.error('loadSchedule:', error); return; }
+        const scheduleMap = {};
+        if (data) {
+          data.forEach(item => {
+            const localDate = utcDateToLocal(item.date);
+            if (!scheduleMap[localDate]) scheduleMap[localDate] = [];
+            scheduleMap[localDate].push(item.worker_id);
+          });
+        }
+        schedule.value = scheduleMap;
+      } catch(e) {
+        console.error('loadSchedule failed:', e.message);
       }
-      
-      const scheduleMap = {};
-      if (data) {
-        data.forEach(item => {
-          const localDate = utcDateToLocal(item.date);
-          if (!scheduleMap[localDate]) scheduleMap[localDate] = [];
-          scheduleMap[localDate].push(item.worker_id);
-        });
-      }
-      schedule.value = scheduleMap;
     }
     
     async function loadUnavailability() {
-      const { data, error } = await db
-        .from('unavailability')
-        .select('*');
-      
-      if (error) {
-        console.error('Error loading unavailability:', error);
-        return;
+      try {
+        const { data, error } = await withTimeout(
+          db.from('unavailability').select('*')
+        );
+        if (error) { console.error('loadUnavailability:', error); return; }
+        const unavailMap = {};
+        if (data) {
+          data.forEach(item => {
+            const localDate = utcDateToLocal(item.date);
+            if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
+            unavailMap[item.worker_id].push(localDate);
+          });
+        }
+        unavailability.value = unavailMap;
+      } catch(e) {
+        console.error('loadUnavailability failed:', e.message);
       }
-      
-      const unavailMap = {};
-      if (data) {
-        data.forEach(item => {
-          const localDate = utcDateToLocal(item.date);
-          if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
-          unavailMap[item.worker_id].push(localDate);
-        });
-      }
-      unavailability.value = unavailMap;
     }
     
     async function loadAdmin() {
-      const { data, error } = await db
-        .from('admin')
-        .select('*')
-        .eq('phone', SUPER_ADMIN_PHONE)
-        .single();
-      
-      if (!error && data) {
-        adminEmail.value = data.email || '';
-        adminPasswordHash.value = data.password_hash || '';
-        // Загружаем глобальный режим отметок
-        availabilityMode.value = data.availability_mode === true;
+      try {
+        const { data, error } = await withTimeout(
+          db.from('admin')
+            .select('email, password_hash, availability_mode')
+            .eq('phone', SUPER_ADMIN_PHONE)
+            .single()
+        );
+        if (!error && data) {
+          adminEmail.value = data.email || '';
+          adminPasswordHash.value = data.password_hash || '';
+          availabilityMode.value = data.availability_mode === true;
+        }
+      } catch(e) {
+        console.error('loadAdmin failed:', e.message);
+        // Не критично — приложение работает и без данных админа
       }
     }
     
@@ -1414,7 +1429,15 @@ createApp({
     
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
+
+      // Даём максимум 10 секунд на загрузку, потом всё равно показываем приложение
+      const loadTimeout = setTimeout(() => {
+        console.warn('loadAllData: global timeout, showing app anyway');
+        hideSplash();
+      }, 10000);
+
       await loadAllData();
+      clearTimeout(loadTimeout);
       setupRealtimeSubscriptions();
       
       const saved = localStorage.getItem('ws_session');
@@ -1434,7 +1457,7 @@ createApp({
         } catch { localStorage.removeItem('ws_session'); }
       }
       
-      setTimeout(hideSplash, 800);
+      hideSplash();
     });
     
     onUnmounted(() => {
