@@ -1165,44 +1165,78 @@ createApp({
       });
     }
     
-    // Заменяем функцию toggleSchedule (около строки 920)
+   
 async function toggleSchedule(workerId, date) {
   const scheduled = (schedule.value[date] || []).includes(workerId);
   if (scheduled) {
-    await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-    // Оптимистичное обновление UI
+    // Оптимистичное обновление UI перед запросом
     if (schedule.value[date]) {
       schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
     }
     showToast('Смена удалена', 'success');
+    
+    try {
+      await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+    } catch(e) {
+      // Если ошибка - возвращаем смену обратно
+      if (!schedule.value[date]) {
+        schedule.value[date] = [];
+      }
+      if (!schedule.value[date].includes(workerId)) {
+        schedule.value[date].push(workerId);
+      }
+      showToast('Ошибка удаления', 'error');
+    }
   } else {
-    await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-    // Оптимистичное обновление UI
+    // Оптимистичное обновление UI перед запросом
     if (!schedule.value[date]) {
       schedule.value[date] = [];
     }
     schedule.value[date].push(workerId);
     showToast('Смена добавлена', 'success');
+    
+    try {
+      await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+    } catch(e) {
+      // Если ошибка - убираем смену
+      if (schedule.value[date]) {
+        schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
+      }
+      showToast('Ошибка добавления', 'error');
+    }
   }
-  // Обновляем данные из GAS для синхронизации
-  await loadSchedule();
+  // НЕ перезагружаем с сервера, чтобы не перезаписать оптимистичные изменения
+  // await loadSchedule(); // УБИРАЕМ эту строку
 }
     
     function isScheduled(workerId, date) {
       return (schedule.value[date] || []).includes(workerId);
     }
     
-    // Заменяем функцию clearUnavailability (около строки 890)
+    
 async function clearUnavailability(workerId, dateStr) {
   if (user.value.role !== 'admin') return;
-  await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
+  
   // Оптимистичное обновление UI
   if (unavailability.value[workerId]) {
     unavailability.value[workerId] = unavailability.value[workerId].filter(d => d !== dateStr);
   }
   showToast('✅ Отметка снята', 'success');
-  // Обновляем данные из GAS для синхронизации
-  await loadUnavailability();
+  
+  try {
+    await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
+  } catch(e) {
+    // Если ошибка - возвращаем отметку обратно
+    if (!unavailability.value[workerId]) {
+      unavailability.value[workerId] = [];
+    }
+    if (!unavailability.value[workerId].includes(dateStr)) {
+      unavailability.value[workerId].push(dateStr);
+    }
+    showToast('Ошибка снятия отметки', 'error');
+  }
+  // НЕ перезагружаем с сервера
+  // await loadUnavailability(); // УБИРАЕМ эту строку
 }
     
     async function clearAllUnavailability() {
@@ -1233,33 +1267,55 @@ async function clearUnavailability(workerId, dateStr) {
       showToast('Email сохранён', 'success');
     }
     
-    // Заменяем функцию toggleUnavailability (около строки 935)
-async function toggleUnavailability(dateStr) {
+    async function toggleUnavailability(dateStr) {
   const today = getLocalToday();
   if (dateStr < today) {
     showToast('Нельзя изменить прошедший день', 'warning');
     return;
   }
+  
   const userUnavail = unavailability.value[user.value.id] || [];
   const isUnavailable = userUnavail.includes(dateStr);
+  
   if (isUnavailable) {
-    await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
     // Оптимистичное обновление UI
     if (unavailability.value[user.value.id]) {
       unavailability.value[user.value.id] = unavailability.value[user.value.id].filter(d => d !== dateStr);
     }
     showToast('✅ День доступен', 'success');
+    
+    try {
+      await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
+    } catch(e) {
+      // Если ошибка - возвращаем отметку обратно
+      if (!unavailability.value[user.value.id]) {
+        unavailability.value[user.value.id] = [];
+      }
+      if (!unavailability.value[user.value.id].includes(dateStr)) {
+        unavailability.value[user.value.id].push(dateStr);
+      }
+      showToast('Ошибка', 'error');
+    }
   } else {
-    await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
     // Оптимистичное обновление UI
     if (!unavailability.value[user.value.id]) {
       unavailability.value[user.value.id] = [];
     }
     unavailability.value[user.value.id].push(dateStr);
     showToast('❌ День отмечен', 'warning');
+    
+    try {
+      await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
+    } catch(e) {
+      // Если ошибка - убираем отметку
+      if (unavailability.value[user.value.id]) {
+        unavailability.value[user.value.id] = unavailability.value[user.value.id].filter(d => d !== dateStr);
+      }
+      showToast('Ошибка', 'error');
+    }
   }
-  // Обновляем данные из GAS для синхронизации
-  await loadUnavailability();
+  // НЕ перезагружаем с сервера
+  // await loadUnavailability(); // УБИРАЕМ эту строку
 }
     
     // UI functions
