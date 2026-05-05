@@ -673,6 +673,7 @@
   <div id="toast" class="toast"></div>
 </div>
 
+<script src="config.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
 <script>
@@ -680,9 +681,11 @@
 // GAS (Google Apps Script) конфигурация
 // Замените GAS_URL на URL вашего задеплоенного Web App
 // =============================================
-// ⚠️ ВАЖНО: вставьте сюда URL вашего GAS Web App
-// Пример: 'https://script.google.com/macros/s/AKfycb.../exec'
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmST0KygQM__roT742r-UTJmkuc7e-ncJCqMsqUJO_5nBvpk3YFK0nTiNwewowoToY/exec';
+// GAS_URL загружается из config.js (файл не коммитится в git — см. .gitignore)
+// Если config.js не подключён — проверьте что файл есть в корне репозитория
+if (typeof GAS_URL === 'undefined') {
+  console.error('GAS_URL не найден! Создайте файл config.js с константой GAS_URL.');
+}
 
 // JSONP запрос к GAS — работает без CORS и VPN
 function gasRequest(params) {
