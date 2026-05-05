@@ -581,18 +581,14 @@
     <button class="nav-btn" @click="prevMonth">←</button>
     <span class="month-title">{{ currentMonthTitle }}</span>
     <button class="nav-btn" @click="nextMonth">→</button>
-    <!-- Для сотрудника: кнопка включения/выключения режима отметок -->
-    <button v-if="user.role === 'worker'" class="nav-btn"
-            :style="{ background: availabilityMode ? 'var(--danger)' : '#64748b' }"
-            @click="toggleAvailabilityMode">
-      {{ availabilityMode ? '🔴 Откл.' : '📌 Отметки' }}
-    </button>
-    <!-- Для админа: кнопка разрешения/запрета режима отметок сотрудникам -->
+    <!-- Только администратор включает/выключает режим отметок -->
     <button v-if="user.role === 'admin'" class="nav-btn"
             :style="{ background: availabilityMode ? '#dc2626' : '#16a34a' }"
             @click="toggleAvailabilityMode">
-      {{ availabilityMode ? '🔴 Режим вкл.' : '🟢 Разрешить отметки' }}
+      {{ availabilityMode ? '🔴 Режим вкл.' : '🟢 Отметки' }}
     </button>
+    <!-- Кнопка выхода для всех -->
+    <button class="nav-btn" :style="{ background: '#64748b' }" @click="logout">🚪</button>
   </div>
 
   <div :class="['sheet', { active: showSettings }]" @click.self="closeSettings">
@@ -684,11 +680,17 @@
 // GAS (Google Apps Script) конфигурация
 // Замените GAS_URL на URL вашего задеплоенного Web App
 // =============================================
-const GAS_URL = 'ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА';
+// ⚠️ ВАЖНО: вставьте сюда URL вашего GAS Web App
+// Пример: 'https://script.google.com/macros/s/AKfycb.../exec'
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmST0KygQM__roT742r-UTJmkuc7e-ncJCqMsqUJO_5nBvpk3YFK0nTiNwewowoToY/exec';
 
 // JSONP запрос к GAS — работает без CORS и VPN
 function gasRequest(params) {
   return new Promise((resolve, reject) => {
+    if (!GAS_URL || GAS_URL.includes('ВСТАВЬТЕ')) {
+      reject(new Error('GAS_URL не настроен'));
+      return;
+    }
     const callbackName = 'gas_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
     const script = document.createElement('script');
     const timeout = setTimeout(() => {
@@ -812,39 +814,46 @@ createApp({
       return w ? w.name : '';
     }
 
+    // localDateStr — YYYY-MM-DD из локальных компонентов даты (без UTC-сдвига)
+    function localDateStr(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + d;
+    }
+
     const calendarDays = computed(() => {
       const year = currentMonth.value.getFullYear();
       const month = currentMonth.value.getMonth();
       const firstDay = new Date(year, month, 1);
       const lastDay = new Date(year, month + 1, 0);
-      
+
       let startDay = firstDay.getDay() || 7;
       startDay -= 1;
       if (startDay < 0) startDay = 6;
 
       const days = [];
-      const today = new Date(); today.setHours(0,0,0,0);
-      const todayStr = today.toISOString().slice(0, 10);
+      const todayStr = getLocalToday();
 
       const prevLastDay = new Date(year, month, 0);
       for (let i = startDay - 1; i >= 0; i--) {
         const d = new Date(year, month - 1, prevLastDay.getDate() - i);
-        days.push(buildDay(d, false, d.toISOString().slice(0,10) === todayStr));
+        days.push(buildDay(d, false, localDateStr(d) === todayStr));
       }
       for (let i = 1; i <= lastDay.getDate(); i++) {
         const d = new Date(year, month, i);
-        days.push(buildDay(d, true, d.toISOString().slice(0,10) === todayStr));
+        days.push(buildDay(d, true, localDateStr(d) === todayStr));
       }
       const rem = 42 - days.length;
       for (let i = 1; i <= rem; i++) {
         const d = new Date(year, month + 1, i);
-        days.push(buildDay(d, false, d.toISOString().slice(0,10) === todayStr));
+        days.push(buildDay(d, false, localDateStr(d) === todayStr));
       }
       return days;
     });
 
     function buildDay(date, isCurrentMonth, isToday) {
-      const ds = date.toISOString().slice(0,10);
+      const ds = localDateStr(date);
       const scheduleForDay = schedule.value[ds] || [];
       const ws = scheduleForDay.map(id => workers.value.find(w => w.id === id)).filter(Boolean);
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
@@ -857,7 +866,7 @@ createApp({
     }
 
     function openSetScheduleModal() {
-      selectedScheduleDate.value = new Date().toISOString().slice(0,10);
+      selectedScheduleDate.value = getLocalToday();
       showScheduleModal.value = true;
     }
 
@@ -1336,33 +1345,39 @@ createApp({
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
 
-      // Даём максимум 10 секунд на загрузку, потом всё равно показываем приложение
       const loadTimeout = setTimeout(() => {
-        console.warn('loadAllData: global timeout, showing app anyway');
+        console.warn('loadAllData: timeout');
         hideSplash();
-      }, 10000);
+      }, 12000);
 
       await loadAllData();
       clearTimeout(loadTimeout);
-      setupPolling();
-      
+
+      // Автовход: восстанавливаем сессию после загрузки данных
       const saved = localStorage.getItem('ws_session');
       if (saved) {
         try {
           const sess = JSON.parse(saved);
-          if (sess.id === 'admin') {
+          if (sess.role === 'admin') {
             user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
           } else {
+            // Ищем сотрудника по id
             const w = workers.value.find(x => x.id === sess.id);
-            if (w && w.is_active !== false && (!w.device_id || w.device_id === getDeviceId())) {
-              user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
+            if (w && w.is_active !== false) {
+              // Проверяем device_id — если привязан, должен совпадать
+              if (!w.device_id || w.device_id === getDeviceId()) {
+                user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
+              } else {
+                localStorage.removeItem('ws_session');
+              }
             } else {
               localStorage.removeItem('ws_session');
             }
           }
         } catch { localStorage.removeItem('ws_session'); }
       }
-      
+
+      setupPolling();
       hideSplash();
     });
     
