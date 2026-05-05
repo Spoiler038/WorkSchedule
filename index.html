@@ -1165,28 +1165,45 @@ createApp({
       });
     }
     
-    async function toggleSchedule(workerId, date) {
-      const scheduled = (schedule.value[date] || []).includes(workerId);
-      if (scheduled) {
-        await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-        showToast('Смена удалена', 'success');
-      } else {
-        await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-        showToast('Смена добавлена', 'success');
-      }
-      await loadSchedule();
+    // Заменяем функцию toggleSchedule (около строки 920)
+async function toggleSchedule(workerId, date) {
+  const scheduled = (schedule.value[date] || []).includes(workerId);
+  if (scheduled) {
+    await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+    // Оптимистичное обновление UI
+    if (schedule.value[date]) {
+      schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
     }
+    showToast('Смена удалена', 'success');
+  } else {
+    await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+    // Оптимистичное обновление UI
+    if (!schedule.value[date]) {
+      schedule.value[date] = [];
+    }
+    schedule.value[date].push(workerId);
+    showToast('Смена добавлена', 'success');
+  }
+  // Обновляем данные из GAS для синхронизации
+  await loadSchedule();
+}
     
     function isScheduled(workerId, date) {
       return (schedule.value[date] || []).includes(workerId);
     }
     
-    async function clearUnavailability(workerId, dateStr) {
-      if (user.value.role !== 'admin') return;
-      await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
-      showToast('✅ Отметка снята', 'success');
-      await loadUnavailability();
-    }
+    // Заменяем функцию clearUnavailability (около строки 890)
+async function clearUnavailability(workerId, dateStr) {
+  if (user.value.role !== 'admin') return;
+  await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
+  // Оптимистичное обновление UI
+  if (unavailability.value[workerId]) {
+    unavailability.value[workerId] = unavailability.value[workerId].filter(d => d !== dateStr);
+  }
+  showToast('✅ Отметка снята', 'success');
+  // Обновляем данные из GAS для синхронизации
+  await loadUnavailability();
+}
     
     async function clearAllUnavailability() {
       let totalMarks = 0;
@@ -1216,23 +1233,34 @@ createApp({
       showToast('Email сохранён', 'success');
     }
     
-    async function toggleUnavailability(dateStr) {
-      const today = getLocalToday();
-      if (dateStr < today) {
-        showToast('Нельзя изменить прошедший день', 'warning');
-        return;
-      }
-      const userUnavail = unavailability.value[user.value.id] || [];
-      const isUnavailable = userUnavail.includes(dateStr);
-      if (isUnavailable) {
-        await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
-        showToast('✅ День доступен', 'success');
-      } else {
-        await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
-        showToast('❌ День отмечен', 'warning');
-      }
-      await loadUnavailability();
+    // Заменяем функцию toggleUnavailability (около строки 935)
+async function toggleUnavailability(dateStr) {
+  const today = getLocalToday();
+  if (dateStr < today) {
+    showToast('Нельзя изменить прошедший день', 'warning');
+    return;
+  }
+  const userUnavail = unavailability.value[user.value.id] || [];
+  const isUnavailable = userUnavail.includes(dateStr);
+  if (isUnavailable) {
+    await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
+    // Оптимистичное обновление UI
+    if (unavailability.value[user.value.id]) {
+      unavailability.value[user.value.id] = unavailability.value[user.value.id].filter(d => d !== dateStr);
     }
+    showToast('✅ День доступен', 'success');
+  } else {
+    await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
+    // Оптимистичное обновление UI
+    if (!unavailability.value[user.value.id]) {
+      unavailability.value[user.value.id] = [];
+    }
+    unavailability.value[user.value.id].push(dateStr);
+    showToast('❌ День отмечен', 'warning');
+  }
+  // Обновляем данные из GAS для синхронизации
+  await loadUnavailability();
+}
     
     // UI functions
     function handleDayClick(day) {
