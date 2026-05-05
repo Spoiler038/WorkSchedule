@@ -678,15 +678,48 @@
 </div>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Supabase configuration
-// ИСПРАВЛЕНИЕ: называем переменную 'db' — полностью избегаем конфликта с window.supabase
-const SUPABASE_URL = 'https://qygiyryyqoumytflqcoh.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5Z2l5cnl5cW91bXl0ZmxxY29oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzQ3NzksImV4cCI6MjA5MzE1MDc3OX0.GZVJ_cgHWL_hX6m-q_dM4KLJsR1yCTMWQ4Npif0VAa8';
+// =============================================
+// GAS (Google Apps Script) конфигурация
+// Замените GAS_URL на URL вашего задеплоенного Web App
+// =============================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmST0KygQM__roT742r-UTJmkuc7e-ncJCqMsqUJO_5nBvpk3YFK0nTiNwewowoToY/exec';
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// JSONP запрос к GAS — работает без CORS и VPN
+function gasRequest(params) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'gas_cb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      delete window[callbackName];
+      document.head.removeChild(script);
+      reject(new Error('GAS timeout'));
+    }, 10000);
+
+    window[callbackName] = function(result) {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      document.head.removeChild(script);
+      if (result.ok) resolve(result.data);
+      else reject(new Error(result.error || 'GAS error'));
+    };
+
+    const qs = Object.entries({ ...params, callback: callbackName })
+      .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(
+        typeof v === 'object' ? JSON.stringify(v) : v
+      )).join('&');
+
+    script.src = GAS_URL + '?' + qs;
+    script.onerror = () => {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      try { document.head.removeChild(script); } catch(e) {}
+      reject(new Error('Script load error'));
+    };
+    document.head.appendChild(script);
+  });
+}
 
 // Constants
 const SUPER_ADMIN_PHONE = '79778700833';
@@ -761,8 +794,6 @@ createApp({
     
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
-    let realtimeSubscription = null;
-
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
 
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
@@ -886,17 +917,10 @@ createApp({
       return '';
     }
 
-    // Утилита: запрос с таймаутом — не даём зависнуть на телефоне
-    function withTimeout(promise, ms = 8000) {
-      return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
-      ]);
-    }
-
-    // Supabase functions
+    // =============================================
+    // GAS DATA FUNCTIONS
+    // =============================================
     async function loadAllData() {
-      // Promise.allSettled — один сбой не блокирует остальные
       await Promise.allSettled([
         loadWorkers(),
         loadSchedule(),
@@ -904,76 +928,47 @@ createApp({
         loadAdmin()
       ]);
     }
-    
+
     async function loadWorkers() {
       try {
-        const { data, error } = await withTimeout(
-          db.from('workers').select('*').order('name')
-        );
-        if (error) { console.error('loadWorkers:', error); return; }
-        workers.value = data || [];
-      } catch(e) {
-        console.error('loadWorkers failed:', e.message);
-      }
+        const data = await gasRequest({ action: 'getWorkers' });
+        workers.value = (data || []).sort((a,b) => a.name.localeCompare(b.name));
+      } catch(e) { console.error('loadWorkers:', e.message); }
     }
-    
+
     async function loadSchedule() {
       try {
-        const { data, error } = await withTimeout(
-          db.from('schedule').select('*')
-        );
-        if (error) { console.error('loadSchedule:', error); return; }
-        const scheduleMap = {};
-        if (data) {
-          data.forEach(item => {
-            const localDate = utcDateToLocal(item.date);
-            if (!scheduleMap[localDate]) scheduleMap[localDate] = [];
-            scheduleMap[localDate].push(item.worker_id);
-          });
-        }
-        schedule.value = scheduleMap;
-      } catch(e) {
-        console.error('loadSchedule failed:', e.message);
-      }
+        const data = await gasRequest({ action: 'getSchedule' });
+        const map = {};
+        (data || []).forEach(item => {
+          if (!map[item.date]) map[item.date] = [];
+          map[item.date].push(item.worker_id);
+        });
+        schedule.value = map;
+      } catch(e) { console.error('loadSchedule:', e.message); }
     }
-    
+
     async function loadUnavailability() {
       try {
-        const { data, error } = await withTimeout(
-          db.from('unavailability').select('*')
-        );
-        if (error) { console.error('loadUnavailability:', error); return; }
-        const unavailMap = {};
-        if (data) {
-          data.forEach(item => {
-            const localDate = utcDateToLocal(item.date);
-            if (!unavailMap[item.worker_id]) unavailMap[item.worker_id] = [];
-            unavailMap[item.worker_id].push(localDate);
-          });
-        }
-        unavailability.value = unavailMap;
-      } catch(e) {
-        console.error('loadUnavailability failed:', e.message);
-      }
+        const data = await gasRequest({ action: 'getUnavailability' });
+        const map = {};
+        (data || []).forEach(item => {
+          if (!map[item.worker_id]) map[item.worker_id] = [];
+          map[item.worker_id].push(item.date);
+        });
+        unavailability.value = map;
+      } catch(e) { console.error('loadUnavailability:', e.message); }
     }
-    
+
     async function loadAdmin() {
       try {
-        const { data, error } = await withTimeout(
-          db.from('admin')
-            .select('email, password_hash, availability_mode')
-            .eq('phone', SUPER_ADMIN_PHONE)
-            .single()
-        );
-        if (!error && data) {
+        const data = await gasRequest({ action: 'getAdmin' });
+        if (data) {
           adminEmail.value = data.email || '';
           adminPasswordHash.value = data.password_hash || '';
           availabilityMode.value = data.availability_mode === true;
         }
-      } catch(e) {
-        console.error('loadAdmin failed:', e.message);
-        // Не критично — приложение работает и без данных админа
-      }
+      } catch(e) { console.error('loadAdmin:', e.message); }
     }
     
     async function refreshData() {
@@ -984,37 +979,27 @@ createApp({
       showToast('✅ Данные обновлены', 'success');
       refreshing.value = false;
     }
-    
-    function setupRealtimeSubscriptions() {
-      if (realtimeSubscription) return;
-      
-      realtimeSubscription = db
-        .channel('schedule-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
-          loadSchedule();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'unavailability' }, () => {
-          loadUnavailability();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'workers' }, () => {
-          loadWorkers();
-        })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admin' }, (payload) => {
-          // Синхронизируем режим отметок для всех устройств
-          if (payload.new && payload.new.phone === SUPER_ADMIN_PHONE) {
-            const newMode = payload.new.availability_mode === true;
-            if (availabilityMode.value !== newMode) {
-              availabilityMode.value = newMode;
-              if (user.value?.role === 'worker') {
-                showToast(
-                  newMode ? '📌 Режим отметок включён — отметьте дни когда не можете выйти' : '✅ Режим отметок закрыт',
-                  newMode ? 'warning' : 'success'
-                );
-              }
-            }
+
+    // GAS не поддерживает realtime — используем polling каждые 30 секунд
+    function setupPolling() {
+      setInterval(async () => {
+        if (!user.value) return;
+        await loadSchedule();
+        await loadUnavailability();
+        // Для сотрудника — проверяем изменение режима отметок
+        if (user.value.role === 'worker') {
+          const prevMode = availabilityMode.value;
+          await loadAdmin();
+          if (prevMode !== availabilityMode.value) {
+            showToast(
+              availabilityMode.value
+                ? '📌 Режим отметок включён — отметьте дни когда не можете выйти'
+                : '✅ Режим отметок закрыт',
+              availabilityMode.value ? 'warning' : 'success'
+            );
           }
-        })
-        .subscribe();
+        }
+      }, 30000);
     }
     
     // Auth functions
@@ -1032,13 +1017,7 @@ createApp({
               loading.value = false;
               return;
             }
-            
-            const { error } = await db
-              .from('admin')
-              .update({ password_hash: loginPass.value })
-              .eq('phone', SUPER_ADMIN_PHONE);
-            
-            if (error) throw error;
+            await gasRequest({ action: 'updateAdmin', data: { password_hash: loginPass.value, phone: SUPER_ADMIN_PHONE } });
             adminPasswordHash.value = loginPass.value;
             user.value = { id: 'admin', phone, role: 'admin', name: 'Администратор' };
             localStorage.setItem('ws_session', JSON.stringify(user.value));
@@ -1083,11 +1062,7 @@ createApp({
             return;
           }
           if (!worker.device_id) {
-            const { error } = await db
-              .from('workers')
-              .update({ device_id: getDeviceId() })
-              .eq('id', worker.id);
-            if (error) throw error;
+            await gasRequest({ action: 'updateWorker', worker: { id: worker.id, device_id: getDeviceId() } });
             worker.device_id = getDeviceId();
           }
           user.value = { id: worker.id, phone, role: worker.role || 'worker', name: worker.name };
@@ -1110,16 +1085,11 @@ createApp({
       if (!email) return;
       if (email === adminEmail.value) {
         const newPassword = Math.random().toString(36).slice(-6);
-        const { error } = await db
-          .from('admin')
-          .update({ password_hash: newPassword })
-          .eq('phone', SUPER_ADMIN_PHONE);
-        if (!error) {
-          adminPasswordHash.value = newPassword;
-          showToast('🔑 Новый пароль: ' + newPassword, 'warning');
-          loginPass.value = newPassword;
-          await handleLogin();
-        }
+        await gasRequest({ action: 'updateAdmin', data: { password_hash: newPassword } });
+        adminPasswordHash.value = newPassword;
+        showToast('🔑 Новый пароль: ' + newPassword, 'warning');
+        loginPass.value = newPassword;
+        await handleLogin();
         showResetPasswordOption.value = false;
       } else {
         showToast('❌ Email не совпадает', 'error');
@@ -1146,22 +1116,9 @@ createApp({
       }
       
       if (editingWorker.value) {
-        const { error } = await db
-          .from('workers')
-          .update({ name, phone })
-          .eq('id', editingWorker.value.id);
-        if (error) {
-          showToast('Ошибка сохранения', 'error');
-          return;
-        }
+        await gasRequest({ action: 'updateWorker', worker: { id: editingWorker.value.id, name, phone } });
       } else {
-        const { error } = await db
-          .from('workers')
-          .insert([{ id: 'w_' + Date.now(), name, phone, role: 'worker', is_active: true }]);
-        if (error) {
-          showToast('Ошибка добавления', 'error');
-          return;
-        }
+        await gasRequest({ action: 'addWorker', worker: { id: 'w_' + Date.now(), name, phone, role: 'worker', is_active: true } });
       }
       showWorkerModal.value = false;
       showToast('Сохранено', 'success');
@@ -1169,25 +1126,16 @@ createApp({
     }
     
     async function toggleWorkerActive(w) {
-      const { error } = await db
-        .from('workers')
-        .update({ is_active: !w.is_active })
-        .eq('id', w.id);
-      if (!error) {
-        w.is_active = !w.is_active;
-        showToast(w.is_active ? 'Активен' : 'Деактивирован', 'success');
-      }
+      const newVal = !w.is_active;
+      await gasRequest({ action: 'updateWorker', worker: { id: w.id, is_active: newVal } });
+      w.is_active = newVal;
+      showToast(newVal ? 'Активен' : 'Деактивирован', 'success');
     }
     
     async function resetDevice(w) {
-      const { error } = await db
-        .from('workers')
-        .update({ device_id: null })
-        .eq('id', w.id);
-      if (!error) {
-        w.device_id = null;
-        showToast('Устройство сброшено', 'success');
-      }
+      await gasRequest({ action: 'updateWorker', worker: { id: w.id, device_id: '' } });
+      w.device_id = null;
+      showToast('Устройство сброшено', 'success');
     }
     
     async function deleteWorker(w) {
@@ -1195,34 +1143,23 @@ createApp({
         title: '🗑️ Удаление сотрудника',
         message: `Вы уверены, что хотите удалить ${w.name}?`,
         onConfirm: async () => {
-          const { error } = await db
-            .from('workers')
-            .delete()
-            .eq('id', w.id);
-          if (!error) {
-            showToast('Сотрудник удалён', 'success');
-            await loadWorkers();
-          }
+          await gasRequest({ action: 'deleteWorker', id: w.id });
+          showToast('Сотрудник удалён', 'success');
+          await loadWorkers();
+          await loadSchedule();
+          await loadUnavailability();
         }
       });
     }
     
     async function toggleSchedule(workerId, date) {
-      const isScheduled = (schedule.value[date] || []).includes(workerId);
-      const utcDate = localDateToUTC(date);
-      
-      if (isScheduled) {
-        const { error } = await db
-          .from('schedule')
-          .delete()
-          .eq('date', utcDate)
-          .eq('worker_id', workerId);
-        if (!error) showToast('Смена удалена', 'success');
+      const scheduled = (schedule.value[date] || []).includes(workerId);
+      if (scheduled) {
+        await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+        showToast('Смена удалена', 'success');
       } else {
-        const { error } = await db
-          .from('schedule')
-          .insert([{ date: utcDate, worker_id: workerId }]);
-        if (!error) showToast('Смена добавлена', 'success');
+        await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+        showToast('Смена добавлена', 'success');
       }
       await loadSchedule();
     }
@@ -1233,16 +1170,9 @@ createApp({
     
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
-      const utcDate = localDateToUTC(dateStr);
-      const { error } = await db
-        .from('unavailability')
-        .delete()
-        .eq('date', utcDate)
-        .eq('worker_id', workerId);
-      if (!error) {
-        showToast('✅ Отметка снята', 'success');
-        await loadUnavailability();
-      }
+      await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
+      showToast('✅ Отметка снята', 'success');
+      await loadUnavailability();
     }
     
     async function clearAllUnavailability() {
@@ -1260,27 +1190,17 @@ createApp({
         title: '🗑️ Снятие всех отметок',
         message: `Будут сняты все отметки недоступности (${totalMarks} шт.). Продолжить?`,
         onConfirm: async () => {
-          const { error } = await db
-            .from('unavailability')
-            .delete()
-            .neq('id', 0);
-          if (!error) {
-            showToast('✅ Все отметки сняты', 'success');
-            await loadUnavailability();
-            closeSettings();
-          }
+          await gasRequest({ action: 'clearAllUnavailability' });
+          showToast('✅ Все отметки сняты', 'success');
+          await loadUnavailability();
+          closeSettings();
         }
       });
     }
     
     async function saveAdminEmail() {
-      const { error } = await db
-        .from('admin')
-        .update({ email: adminEmail.value })
-        .eq('phone', SUPER_ADMIN_PHONE);
-      if (!error) {
-        showToast('Email сохранён', 'success');
-      }
+      await gasRequest({ action: 'updateAdmin', data: { email: adminEmail.value } });
+      showToast('Email сохранён', 'success');
     }
     
     async function toggleUnavailability(dateStr) {
@@ -1289,23 +1209,14 @@ createApp({
         showToast('Нельзя изменить прошедший день', 'warning');
         return;
       }
-      
       const userUnavail = unavailability.value[user.value.id] || [];
       const isUnavailable = userUnavail.includes(dateStr);
-      const utcDate = localDateToUTC(dateStr);
-      
       if (isUnavailable) {
-        const { error } = await db
-          .from('unavailability')
-          .delete()
-          .eq('date', utcDate)
-          .eq('worker_id', user.value.id);
-        if (!error) showToast('✅ День доступен', 'success');
+        await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
+        showToast('✅ День доступен', 'success');
       } else {
-        const { error } = await db
-          .from('unavailability')
-          .insert([{ date: utcDate, worker_id: user.value.id }]);
-        if (!error) showToast('❌ День отмечен', 'warning');
+        await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
+        showToast('❌ День отмечен', 'warning');
       }
       await loadUnavailability();
     }
@@ -1331,19 +1242,14 @@ createApp({
     
     async function toggleAvailabilityMode() {
       const newVal = !availabilityMode.value;
-
       if (user.value.role === 'admin') {
-        // Админ переключает глобальный режим — сохраняем в БД
-        const { error } = await db
-          .from('admin')
-          .update({ availability_mode: newVal })
-          .eq('phone', SUPER_ADMIN_PHONE);
-        if (error) {
+        try {
+          await gasRequest({ action: 'updateAdmin', data: { availability_mode: newVal } });
+        } catch(e) {
           showToast('Ошибка сохранения', 'error');
           return;
         }
       }
-
       availabilityMode.value = newVal;
       showToast(
         newVal ? '🟡 Режим отметок ВКЛЮЧЁН — сотрудники могут отмечать дни' : '🟢 Режим отметок выключен',
@@ -1438,7 +1344,7 @@ createApp({
 
       await loadAllData();
       clearTimeout(loadTimeout);
-      setupRealtimeSubscriptions();
+      setupPolling();
       
       const saved = localStorage.getItem('ws_session');
       if (saved) {
@@ -1461,9 +1367,7 @@ createApp({
     });
     
     onUnmounted(() => {
-      if (realtimeSubscription) {
-        realtimeSubscription.unsubscribe();
-      }
+      // polling cleanup не нужен (setInterval очищается сам при закрытии страницы)
     });
     
     return {
