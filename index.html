@@ -684,7 +684,7 @@
 // GAS (Google Apps Script) конфигурация
 // Замените GAS_URL на URL вашего задеплоенного Web App
 // =============================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxmST0KygQM__roT742r-UTJmkuc7e-ncJCqMsqUJO_5nBvpk3YFK0nTiNwewowoToY/exec';
+const GAS_URL = 'ВСТАВЬТЕ_URL_ВАШЕГО_GAS_WEB_APP_СЮДА';
 
 // JSONP запрос к GAS — работает без CORS и VPN
 function gasRequest(params) {
@@ -1072,7 +1072,7 @@ createApp({
         }
         loginPhone.value = '';
         loginPass.value = '';
-        setupRealtimeSubscriptions();
+        setupPolling();
       } catch(e) {
         console.error(e);
         loginError.value = 'Ошибка сети';
