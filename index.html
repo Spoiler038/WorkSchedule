@@ -895,7 +895,7 @@ createApp({
       for (let d = 1; d <= 31; d++) {
         const date = new Date(year, month, d);
         if (date.getMonth() !== month) continue;
-        const ds = date.toISOString().slice(0, 10);
+        const ds = localDateStr(date); // локальная дата без UTC-сдвига
         
         const ids = schedule.value[ds] || [];
         for (const id of ids) {
@@ -933,8 +933,9 @@ createApp({
     // GAS DATA FUNCTIONS
     // =============================================
     async function loadAllData() {
+      // Workers грузим ПЕРВЫМ — остальные данные зависят от него (buildDay ищет worker по id)
+      await loadWorkers();
       await Promise.allSettled([
-        loadWorkers(),
         loadSchedule(),
         loadUnavailability(),
         loadAdmin()
