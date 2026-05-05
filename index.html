@@ -700,7 +700,7 @@ function gasRequest(params) {
       delete window[callbackName];
       document.head.removeChild(script);
       reject(new Error('GAS timeout'));
-    }, 10000);
+    }, 20000);
 
     window[callbackName] = function(result) {
       clearTimeout(timeout);
