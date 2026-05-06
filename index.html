@@ -800,10 +800,12 @@ createApp({
     const workerForm = ref({ name: '', phone: '' });
     const selectedScheduleDate = ref('');
     
+    
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
     let pendingOps = 0; // счётчик активных запросов к GAS
+    let scheduleLastUpdate = null;
 
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
     
@@ -954,16 +956,20 @@ createApp({
     }
 
     async function loadSchedule() {
-      try {
-        const data = await gasRequest({ action: 'getSchedule' });
-        const map = {};
-        (data || []).forEach(item => {
-          if (!map[item.date]) map[item.date] = [];
-          map[item.date].push(item.worker_id);
-        });
-        schedule.value = map;
-      } catch(e) { console.error('loadSchedule:', e.message); }
-    }
+  try {
+    const data = await gasRequest({ action: 'getSchedule' });
+    const map = {};
+    (data || []).forEach(item => {
+      if (!map[item.date]) map[item.date] = [];
+      // Защита от дубликатов при загрузке
+      if (!map[item.date].includes(item.worker_id)) {
+        map[item.date].push(item.worker_id);
+      }
+    });
+    schedule.value = map;
+    scheduleLastUpdate = Date.now();
+  } catch(e) { console.error('loadSchedule:', e.message); }
+}
 
     async function loadUnavailability() {
       try {
@@ -999,27 +1005,87 @@ createApp({
 
     // GAS не поддерживает realtime — используем polling каждые 30 секунд
     function setupPolling() {
-      setInterval(async () => {
-        if (!user.value) return;
-        // Не перезагружаем пока есть активные операции записи — иначе UI мигает
-        if (pendingOps > 0) return;
-        await loadSchedule();
-        if (pendingOps > 0) return; // проверяем снова после загрузки
-        await loadUnavailability();
-        if (user.value.role === 'worker') {
-          const prevMode = availabilityMode.value;
-          await loadAdmin();
-          if (prevMode !== availabilityMode.value) {
-            showToast(
-              availabilityMode.value
-                ? '📌 Режим отметок включён — отметьте дни когда не можете выйти'
-                : '✅ Режим отметок закрыт',
-              availabilityMode.value ? 'warning' : 'success'
-            );
-          }
-        }
-      }, 30000);
+  setInterval(async () => {
+    if (!user.value) return;
+    // Не перезагружаем пока есть активные операции записи
+    if (pendingOps > 0) return;
+    // Не обновляем если последнее обновление было менее 5 секунд назад
+    if (scheduleLastUpdate && (Date.now() - scheduleLastUpdate) < 5000) return;
+    
+    await loadSchedule();
+    if (pendingOps > 0) return;
+    
+    await loadUnavailability();
+    if (user.value.role === 'worker') {
+      const prevMode = availabilityMode.value;
+      await loadAdmin();
+      if (prevMode !== availabilityMode.value) {
+        showToast(
+          availabilityMode.value
+            ? '📌 Режим отметок включён — отметьте дни когда не можете выйти'
+            : '✅ Режим отметок закрыт',
+          availabilityMode.value ? 'warning' : 'success'
+        );
+      }
     }
+  }, 30000);
+}
+
+    function addSchedule(date, worker_id) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Schedule');
+  
+  // Проверяем, нет ли уже такой записи
+  const data = sheet.getDataRange().getValues();
+  const existingRow = data.findIndex(row => 
+    row[0] === date && row[1] === worker_id
+  );
+  
+  if (existingRow >= 0) {
+    return { 
+      ok: false, 
+      error: 'Сотрудник уже назначен на этот день' 
+    };
+  }
+  
+  // Если записи нет - добавляем
+  sheet.appendRow([date, worker_id]);
+  return { ok: true, data: 'added' };
+}
+
+    // Умная загрузка расписания с проверкой необходимости обновления
+async function smartLoadSchedule(force = false) {
+  // Если есть активные операции - не обновляем
+  if (pendingOps > 0 && !force) {
+    console.log('Пропускаем загрузку - есть активные операции');
+    return;
+  }
+  
+  // Если последнее обновление было менее 2 секунд назад - пропускаем
+  const now = Date.now();
+  if (scheduleLastUpdate && (now - scheduleLastUpdate) < 2000 && !force) {
+    console.log('Пропускаем загрузку - недавно обновляли');
+    return;
+  }
+  
+  try {
+    const data = await gasRequest({ action: 'getSchedule' });
+    const map = {};
+    (data || []).forEach(item => {
+      if (!map[item.date]) map[item.date] = [];
+      // Добавляем проверку на дубликаты при загрузке
+      if (!map[item.date].includes(item.worker_id)) {
+        map[item.date].push(item.worker_id);
+      }
+    });
+    schedule.value = map;
+    scheduleLastUpdate = now;
+  } catch(e) { 
+    console.error('loadSchedule:', e.message); 
+  }
+}
+
+// Добавьте эту переменную в setup()
+let scheduleLastUpdate = null;
     
     // Auth functions
     async function handleLogin() {
@@ -1168,6 +1234,50 @@ createApp({
     }
     
    async function toggleSchedule(workerId, date) {
+  if (!date || !workerId) return;
+  
+  const currentSchedule = schedule.value[date] || [];
+  const scheduled = currentSchedule.includes(workerId);
+  
+  if (scheduled) {
+    // Удаляем смену
+    schedule.value[date] = currentSchedule.filter(id => id !== workerId);
+    showToast('Смена удалена', 'success');
+    
+    pendingOps++;
+    try {
+      await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch(e) {
+      // Восстанавливаем при ошибке
+      if (!schedule.value[date]) schedule.value[date] = [];
+      schedule.value[date] = [...schedule.value[date], workerId];
+      showToast('Ошибка удаления смены', 'error');
+    } finally {
+      pendingOps--;
+    }
+  } else {
+    // Проверка на дубликат
+    if (!currentSchedule.includes(workerId)) {
+      schedule.value[date] = [...currentSchedule, workerId];
+      showToast('Смена добавлена', 'success');
+      
+      pendingOps++;
+      try {
+        await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch(e) {
+        schedule.value[date] = currentSchedule.filter(id => id !== workerId);
+        showToast('Ошибка добавления смены', 'error');
+      } finally {
+        pendingOps--;
+      }
+    } else {
+      showToast('⚠️ Сотрудник уже назначен', 'warning');
+      return;
+    }
+  }
+}
     
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
