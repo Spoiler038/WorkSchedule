@@ -700,7 +700,7 @@ function gasRequest(params) {
       delete window[callbackName];
       document.head.removeChild(script);
       reject(new Error('GAS timeout'));
-    }, 20000);
+    }, 10000);
 
     window[callbackName] = function(result) {
       clearTimeout(timeout);
@@ -800,6 +800,7 @@ createApp({
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
     let toastTimer = null;
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+    let pendingOps = 0; // счётчик активных запросов к GAS
 
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
     
@@ -997,9 +998,11 @@ createApp({
     function setupPolling() {
       setInterval(async () => {
         if (!user.value) return;
+        // Не перезагружаем пока есть активные операции записи — иначе UI мигает
+        if (pendingOps > 0) return;
         await loadSchedule();
+        if (pendingOps > 0) return; // проверяем снова после загрузки
         await loadUnavailability();
-        // Для сотрудника — проверяем изменение режима отметок
         if (user.value.role === 'worker') {
           const prevMode = availabilityMode.value;
           await loadAdmin();
@@ -1113,10 +1116,6 @@ createApp({
       localStorage.removeItem('ws_session');
       user.value = null;
       showSettings.value = false;
-      if (realtimeSubscription) {
-        realtimeSubscription.unsubscribe();
-        realtimeSubscription = null;
-      }
     }
     
     // CRUD functions
@@ -1165,79 +1164,38 @@ createApp({
       });
     }
     
-   
-async function toggleSchedule(workerId, date) {
-  const scheduled = (schedule.value[date] || []).includes(workerId);
-  if (scheduled) {
-    // Оптимистичное обновление UI перед запросом
-    if (schedule.value[date]) {
-      schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
-    }
-    showToast('Смена удалена', 'success');
-    
-    try {
-      await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-    } catch(e) {
-      // Если ошибка - возвращаем смену обратно
-      if (!schedule.value[date]) {
-        schedule.value[date] = [];
+    async function toggleSchedule(workerId, date) {
+      const scheduled = (schedule.value[date] || []).includes(workerId);
+      if (scheduled) {
+        await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+        showToast('Смена удалена', 'success');
+      } else {
+        await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+        showToast('Смена добавлена', 'success');
       }
-      if (!schedule.value[date].includes(workerId)) {
-        schedule.value[date].push(workerId);
-      }
-      showToast('Ошибка удаления', 'error');
+      await loadSchedule();
     }
-  } else {
-    // Оптимистичное обновление UI перед запросом
-    if (!schedule.value[date]) {
-      schedule.value[date] = [];
-    }
-    schedule.value[date].push(workerId);
-    showToast('Смена добавлена', 'success');
-    
-    try {
-      await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-    } catch(e) {
-      // Если ошибка - убираем смену
-      if (schedule.value[date]) {
-        schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
-      }
-      showToast('Ошибка добавления', 'error');
-    }
-  }
-  // НЕ перезагружаем с сервера, чтобы не перезаписать оптимистичные изменения
-  // await loadSchedule(); // УБИРАЕМ эту строку
-}
     
     function isScheduled(workerId, date) {
       return (schedule.value[date] || []).includes(workerId);
     }
     
-    
-async function clearUnavailability(workerId, dateStr) {
-  if (user.value.role !== 'admin') return;
-  
-  // Оптимистичное обновление UI
-  if (unavailability.value[workerId]) {
-    unavailability.value[workerId] = unavailability.value[workerId].filter(d => d !== dateStr);
-  }
-  showToast('✅ Отметка снята', 'success');
-  
-  try {
-    await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
-  } catch(e) {
-    // Если ошибка - возвращаем отметку обратно
-    if (!unavailability.value[workerId]) {
-      unavailability.value[workerId] = [];
+    async function clearUnavailability(workerId, dateStr) {
+      if (user.value.role !== 'admin') return;
+      // Оптимистичное обновление
+      unavailability.value[workerId] = (unavailability.value[workerId] || []).filter(d => d !== dateStr);
+      pendingOps++;
+      try {
+        await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: workerId });
+        showToast('✅ Отметка снята', 'success');
+      } catch(e) {
+        if (!unavailability.value[workerId]) unavailability.value[workerId] = [];
+        unavailability.value[workerId] = [...unavailability.value[workerId], dateStr];
+        showToast('Ошибка снятия отметки', 'error');
+      } finally {
+        pendingOps--;
+      }
     }
-    if (!unavailability.value[workerId].includes(dateStr)) {
-      unavailability.value[workerId].push(dateStr);
-    }
-    showToast('Ошибка снятия отметки', 'error');
-  }
-  // НЕ перезагружаем с сервера
-  // await loadUnavailability(); // УБИРАЕМ эту строку
-}
     
     async function clearAllUnavailability() {
       let totalMarks = 0;
@@ -1268,55 +1226,22 @@ async function clearUnavailability(workerId, dateStr) {
     }
     
     async function toggleUnavailability(dateStr) {
-  const today = getLocalToday();
-  if (dateStr < today) {
-    showToast('Нельзя изменить прошедший день', 'warning');
-    return;
-  }
-  
-  const userUnavail = unavailability.value[user.value.id] || [];
-  const isUnavailable = userUnavail.includes(dateStr);
-  
-  if (isUnavailable) {
-    // Оптимистичное обновление UI
-    if (unavailability.value[user.value.id]) {
-      unavailability.value[user.value.id] = unavailability.value[user.value.id].filter(d => d !== dateStr);
-    }
-    showToast('✅ День доступен', 'success');
-    
-    try {
-      await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
-    } catch(e) {
-      // Если ошибка - возвращаем отметку обратно
-      if (!unavailability.value[user.value.id]) {
-        unavailability.value[user.value.id] = [];
+      const today = getLocalToday();
+      if (dateStr < today) {
+        showToast('Нельзя изменить прошедший день', 'warning');
+        return;
       }
-      if (!unavailability.value[user.value.id].includes(dateStr)) {
-        unavailability.value[user.value.id].push(dateStr);
+      const userUnavail = unavailability.value[user.value.id] || [];
+      const isUnavailable = userUnavail.includes(dateStr);
+      if (isUnavailable) {
+        await gasRequest({ action: 'removeUnavailability', date: dateStr, worker_id: user.value.id });
+        showToast('✅ День доступен', 'success');
+      } else {
+        await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
+        showToast('❌ День отмечен', 'warning');
       }
-      showToast('Ошибка', 'error');
+      await loadUnavailability();
     }
-  } else {
-    // Оптимистичное обновление UI
-    if (!unavailability.value[user.value.id]) {
-      unavailability.value[user.value.id] = [];
-    }
-    unavailability.value[user.value.id].push(dateStr);
-    showToast('❌ День отмечен', 'warning');
-    
-    try {
-      await gasRequest({ action: 'addUnavailability', date: dateStr, worker_id: user.value.id });
-    } catch(e) {
-      // Если ошибка - убираем отметку
-      if (unavailability.value[user.value.id]) {
-        unavailability.value[user.value.id] = unavailability.value[user.value.id].filter(d => d !== dateStr);
-      }
-      showToast('Ошибка', 'error');
-    }
-  }
-  // НЕ перезагружаем с сервера
-  // await loadUnavailability(); // УБИРАЕМ эту строку
-}
     
     // UI functions
     function handleDayClick(day) {
