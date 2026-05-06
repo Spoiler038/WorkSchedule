@@ -1031,60 +1031,7 @@ createApp({
   }, 30000);
 }
 
-    function addSchedule(date, worker_id) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Schedule');
-  
-  // Проверяем, нет ли уже такой записи
-  const data = sheet.getDataRange().getValues();
-  const existingRow = data.findIndex(row => 
-    row[0] === date && row[1] === worker_id
-  );
-  
-  if (existingRow >= 0) {
-    return { 
-      ok: false, 
-      error: 'Сотрудник уже назначен на этот день' 
-    };
-  }
-  
-  // Если записи нет - добавляем
-  sheet.appendRow([date, worker_id]);
-  return { ok: true, data: 'added' };
-}
-
-    // Умная загрузка расписания с проверкой необходимости обновления
-async function smartLoadSchedule(force = false) {
-  // Если есть активные операции - не обновляем
-  if (pendingOps > 0 && !force) {
-    console.log('Пропускаем загрузку - есть активные операции');
-    return;
-  }
-  
-  // Если последнее обновление было менее 2 секунд назад - пропускаем
-  const now = Date.now();
-  if (scheduleLastUpdate && (now - scheduleLastUpdate) < 2000 && !force) {
-    console.log('Пропускаем загрузку - недавно обновляли');
-    return;
-  }
-  
-  try {
-    const data = await gasRequest({ action: 'getSchedule' });
-    const map = {};
-    (data || []).forEach(item => {
-      if (!map[item.date]) map[item.date] = [];
-      // Добавляем проверку на дубликаты при загрузке
-      if (!map[item.date].includes(item.worker_id)) {
-        map[item.date].push(item.worker_id);
-      }
-    });
-    schedule.value = map;
-    scheduleLastUpdate = now;
-  } catch(e) { 
-    console.error('loadSchedule:', e.message); 
-  }
-}
-
-    
+       
     // Auth functions
     async function handleLogin() {
       loginError.value = '';
@@ -1510,7 +1457,7 @@ async function smartLoadSchedule(force = false) {
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
-      openSetScheduleModal, isScheduled, toggleSchedule,
+      openSetScheduleModal, toggleSchedule,
       callWorker,
       saveAdminEmail, openSettings, toggleTheme, showToast,
       getWorkerColor, getDayUnavailable, getDayUnavailableInfo,
