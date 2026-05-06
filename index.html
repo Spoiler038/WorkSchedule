@@ -1164,21 +1164,67 @@ createApp({
       });
     }
     
-    async function toggleSchedule(workerId, date) {
-      const scheduled = (schedule.value[date] || []).includes(workerId);
-      if (scheduled) {
-        await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-        showToast('Смена удалена', 'success');
-      } else {
-        await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-        showToast('Смена добавлена', 'success');
-      }
-      await loadSchedule();
+   async function toggleSchedule(workerId, date) {
+  const scheduled = (schedule.value[date] || []).includes(workerId);
+  
+  // Оптимистичное обновление UI ДО запроса к GAS
+  if (scheduled) {
+    // Удаляем смену из локального состояния
+    if (schedule.value[date]) {
+      schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
+    }
+    showToast('Смена удалена', 'success');
+  } else {
+    // Добавляем смену в локальное состояние
+    if (!schedule.value[date]) {
+      schedule.value[date] = [];
+    }
+    schedule.value[date].push(workerId);
+    showToast('Смена добавлена', 'success');
+  }
+  
+  // Увеличиваем счетчик операций
+  pendingOps++;
+  
+  try {
+    // Отправляем запрос к GAS
+    if (scheduled) {
+      await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+    } else {
+      await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
     }
     
-    function isScheduled(workerId, date) {
-      return (schedule.value[date] || []).includes(workerId);
+    // Ждем немного, чтобы GAS обработал изменения
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Загружаем актуальные данные с сервера
+    await loadSchedule();
+    
+  } catch(e) {
+    console.error('toggleSchedule error:', e);
+    
+    // В случае ошибки возвращаем изменения обратно
+    if (scheduled) {
+      // Возвращаем удаленную смену
+      if (!schedule.value[date]) {
+        schedule.value[date] = [];
+      }
+      if (!schedule.value[date].includes(workerId)) {
+        schedule.value[date].push(workerId);
+      }
+      showToast('Ошибка удаления смены', 'error');
+    } else {
+      // Убираем добавленную смену
+      if (schedule.value[date]) {
+        schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
+      }
+      showToast('Ошибка добавления смены', 'error');
     }
+  } finally {
+    // Уменьшаем счетчик операций
+    pendingOps--;
+  }
+}
     
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
