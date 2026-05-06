@@ -656,19 +656,22 @@
   </div>
 
   <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="showScheduleModal = false">
-    <div class="modal" style="max-height:80vh;overflow-y:auto;">
-      <div class="modal-title">📝 Редактировать график</div>
-      <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
-      <div v-if="selectedScheduleDate" v-for="w in workers" :key="w.id" 
+  <div class="modal" style="max-height:80vh;overflow-y:auto;">
+    <div class="modal-title">📝 Редактировать график</div>
+    <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
+    <div v-if="selectedScheduleDate && workers.length > 0">
+      <div v-for="w in workers" :key="w.id" 
            style="display:flex;align-items:center;gap:8px;padding:6px 0;">
-        <input type="checkbox" :checked="isScheduled(w.id, selectedScheduleDate)" 
-               @change="toggleSchedule(w.id, selectedScheduleDate)" 
+        <input type="checkbox" 
+               :checked="schedule[selectedScheduleDate] && schedule[selectedScheduleDate].includes(w.id)" 
+               @click="toggleSchedule(w.id, selectedScheduleDate)" 
                style="width:18px;height:18px;accent-color:var(--primary);">
         <span style="font-size:13px;">{{ w.name }}</span>
       </div>
-      <button class="btn btn-secondary" @click="showScheduleModal = false" style="margin-top:12px;">Закрыть</button>
     </div>
+    <button class="btn btn-secondary" @click="showScheduleModal = false" style="margin-top:12px;">Закрыть</button>
   </div>
+</div>
 
   <div id="toast" class="toast"></div>
 </div>
@@ -1165,66 +1168,6 @@ createApp({
     }
     
    async function toggleSchedule(workerId, date) {
-  const scheduled = (schedule.value[date] || []).includes(workerId);
-  
-  // Оптимистичное обновление UI ДО запроса к GAS
-  if (scheduled) {
-    // Удаляем смену из локального состояния
-    if (schedule.value[date]) {
-      schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
-    }
-    showToast('Смена удалена', 'success');
-  } else {
-    // Добавляем смену в локальное состояние
-    if (!schedule.value[date]) {
-      schedule.value[date] = [];
-    }
-    schedule.value[date].push(workerId);
-    showToast('Смена добавлена', 'success');
-  }
-  
-  // Увеличиваем счетчик операций
-  pendingOps++;
-  
-  try {
-    // Отправляем запрос к GAS
-    if (scheduled) {
-      await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-    } else {
-      await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-    }
-    
-    // Ждем немного, чтобы GAS обработал изменения
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Загружаем актуальные данные с сервера
-    await loadSchedule();
-    
-  } catch(e) {
-    console.error('toggleSchedule error:', e);
-    
-    // В случае ошибки возвращаем изменения обратно
-    if (scheduled) {
-      // Возвращаем удаленную смену
-      if (!schedule.value[date]) {
-        schedule.value[date] = [];
-      }
-      if (!schedule.value[date].includes(workerId)) {
-        schedule.value[date].push(workerId);
-      }
-      showToast('Ошибка удаления смены', 'error');
-    } else {
-      // Убираем добавленную смену
-      if (schedule.value[date]) {
-        schedule.value[date] = schedule.value[date].filter(id => id !== workerId);
-      }
-      showToast('Ошибка добавления смены', 'error');
-    }
-  } finally {
-    // Уменьшаем счетчик операций
-    pendingOps--;
-  }
-}
     
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
