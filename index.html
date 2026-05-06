@@ -1008,9 +1008,15 @@ createApp({
   setInterval(async () => {
     if (!user.value) return;
     // Не перезагружаем пока есть активные операции записи
-    if (pendingOps > 0) return;
-    // Не обновляем если последнее обновление было менее 5 секунд назад
-    if (scheduleLastUpdate && (Date.now() - scheduleLastUpdate) < 5000) return;
+    if (pendingOps > 0) {
+      console.log('Polling пропущен - есть активные операции');
+      return;
+    }
+    // Не обновляем если последнее обновление было менее 10 секунд назад
+    if (scheduleLastUpdate && (Date.now() - scheduleLastUpdate) < 10000) {
+      console.log('Polling пропущен - недавно обновляли');
+      return;
+    }
     
     await loadSchedule();
     if (pendingOps > 0) return;
@@ -1185,15 +1191,36 @@ createApp({
   const scheduled = currentSchedule.includes(workerId);
   
   if (scheduled) {
-    // Удаляем смену
+    // Удаляем смену из UI мгновенно
     schedule.value[date] = currentSchedule.filter(id => id !== workerId);
     showToast('Смена удалена', 'success');
     
     pendingOps++;
     try {
+      // Отправляем запрос на удаление
       await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
-      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Ждем 2 секунды чтобы GAS точно обработал
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Проверяем, что запись действительно удалена в таблице
+      const verifyData = await gasRequest({ action: 'getSchedule' });
+      const stillExists = verifyData.some(item => 
+        item.date === date && item.worker_id === workerId
+      );
+      
+      if (stillExists) {
+        // Если запись осталась - пробуем еще раз
+        console.log('Запись не удалена, пробуем еще раз');
+        await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Загружаем актуальные данные
+      await loadSchedule();
+      
     } catch(e) {
+      console.error('Ошибка удаления смены:', e);
       // Восстанавливаем при ошибке
       if (!schedule.value[date]) schedule.value[date] = [];
       schedule.value[date] = [...schedule.value[date], workerId];
@@ -1210,7 +1237,11 @@ createApp({
       pendingOps++;
       try {
         await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Загружаем актуальные данные
+        await loadSchedule();
+        
       } catch(e) {
         schedule.value[date] = currentSchedule.filter(id => id !== workerId);
         showToast('Ошибка добавления смены', 'error');
