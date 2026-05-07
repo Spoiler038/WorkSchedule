@@ -655,23 +655,26 @@
     </div>
   </div>
 
-  <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="showScheduleModal = false">
-  <div class="modal" style="max-height:80vh;overflow-y:auto;">
-    <div class="modal-title">📝 Редактировать график</div>
-    <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
-    <div v-if="selectedScheduleDate && workers.length > 0">
-      <div v-for="w in workers" :key="w.id" 
-           style="display:flex;align-items:center;gap:8px;padding:6px 0;">
-        <input type="checkbox" 
-               :checked="schedule[selectedScheduleDate] && schedule[selectedScheduleDate].includes(w.id)" 
-               @click="toggleSchedule(w.id, selectedScheduleDate)" 
-               style="width:18px;height:18px;accent-color:var(--primary);">
-        <span style="font-size:13px;">{{ w.name }}</span>
+    <div :class="['modal-overlay', { active: showScheduleModal }]" @click.self="closeScheduleModal">
+    <div class="modal" style="max-height:80vh;overflow-y:auto;">
+      <div class="modal-title">📝 Редактировать график</div>
+      <input type="date" v-model="selectedScheduleDate" style="margin-bottom:12px;">
+      <div v-if="selectedScheduleDate && workers.length > 0">
+        <div v-for="w in workers" :key="w.id" 
+             style="display:flex;align-items:center;gap:8px;padding:6px 0;">
+          <input type="checkbox" 
+                 :checked="isWorkerScheduled(w.id)" 
+                 @change="toggleScheduleChange(w.id)" 
+                 style="width:18px;height:18px;accent-color:var(--primary);">
+          <span style="font-size:13px;">{{ w.name }}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="btn btn-secondary" @click="closeScheduleModal" style="flex:1;">Отмена</button>
+        <button class="btn btn-primary" @click="saveScheduleChanges" style="flex:1;">Сохранить</button>
       </div>
     </div>
-    <button class="btn btn-secondary" @click="showScheduleModal = false" style="margin-top:12px;">Закрыть</button>
   </div>
-</div>
 
   <div id="toast" class="toast"></div>
 </div>
@@ -682,10 +685,7 @@
 <script>
 // =============================================
 // GAS (Google Apps Script) конфигурация
-// Замените GAS_URL на URL вашего задеплоенного Web App
 // =============================================
-// GAS_URL загружается из config.js (файл не коммитится в git — см. .gitignore)
-// Если config.js не подключён — проверьте что файл есть в корне репозитория
 if (typeof GAS_URL === 'undefined') {
   console.error('GAS_URL не найден! Создайте файл config.js с константой GAS_URL.');
 }
@@ -703,7 +703,7 @@ function gasRequest(params) {
       delete window[callbackName];
       document.head.removeChild(script);
       reject(new Error('GAS timeout'));
-    }, 10000);
+    }, 15000);
 
     window[callbackName] = function(result) {
       clearTimeout(timeout);
@@ -729,11 +729,12 @@ function gasRequest(params) {
   });
 }
 
-// Constants
+// =============================================
+// CONSTANTS & UTILS
+// =============================================
 const SUPER_ADMIN_PHONE = '79778700833';
 const WORKER_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#ca8a04', '#4f46e5'];
 
-// Utility functions
 function formatPhone(phone) {
   let c = String(phone || '').replace(/[^\d]/g, '');
   if (c.startsWith('8') && c.length === 11) c = '7' + c.slice(1);
@@ -771,11 +772,14 @@ function utcDateToLocal(utcDateStr) {
   return `${year}-${month}-${day}`;
 }
 
-// Vue app
+// =============================================
+// VUE APP
+// =============================================
 const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
 
 createApp({
   setup() {
+    // ---- state ----
     const user = ref(null);
     const loginPhone = ref('');
     const loginPass = ref('');
@@ -800,19 +804,25 @@ createApp({
     const workerForm = ref({ name: '', phone: '' });
     const selectedScheduleDate = ref('');
     
+    // Новые переменные для пакетного сохранения
+    const scheduleChanges = ref({});       // { workerId: 'add' | 'remove' }
+    const originalSchedule = ref([]);       // исходный массив worker_id при открытии модалки
     
     const isDark = ref(localStorage.getItem('ws_theme') !== 'light');
+    
     let toastTimer = null;
     let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
-    let pendingOps = 0; // счётчик активных запросов к GAS
+    let pendingOps = 0;
     let scheduleLastUpdate = null;
 
+    // ---- computed ----
     const needAdminPassword = computed(() => formatPhone(loginPhone.value) === SUPER_ADMIN_PHONE);
     
     const currentMonthTitle = computed(() => {
       return currentMonth.value.toLocaleDateString('ru', { month: 'long', year: 'numeric' });
     });
 
+    // ---- helpers ----
     function getWorkerColor(workerId) {
       const idx = workers.value.findIndex(w => w.id === workerId);
       return WORKER_COLORS[idx % WORKER_COLORS.length];
@@ -823,7 +833,6 @@ createApp({
       return w ? w.name : '';
     }
 
-    // localDateStr — YYYY-MM-DD из локальных компонентов даты (без UTC-сдвига)
     function localDateStr(date) {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -831,6 +840,7 @@ createApp({
       return y + '-' + m + '-' + d;
     }
 
+    // ---- calendar ----
     const calendarDays = computed(() => {
       const year = currentMonth.value.getFullYear();
       const month = currentMonth.value.getMonth();
@@ -868,15 +878,9 @@ createApp({
       return { dateStr: ds, dayNum: date.getDate(), isCurrentMonth, isToday, workers: ws };
     }
 
-    // Проверяет, отметил ли текущий сотрудник этот день как недоступный
     function isUnavailSelf(dateStr) {
       if (!user.value) return false;
       return (unavailability.value[user.value.id] || []).includes(dateStr);
-    }
-
-    function openSetScheduleModal() {
-      selectedScheduleDate.value = getLocalToday();
-      showScheduleModal.value = true;
     }
 
     function getDayUnavailable(dateStr) {
@@ -901,7 +905,7 @@ createApp({
       for (let d = 1; d <= 31; d++) {
         const date = new Date(year, month, d);
         if (date.getMonth() !== month) continue;
-        const ds = localDateStr(date); // локальная дата без UTC-сдвига
+        const ds = localDateStr(date);
         
         const ids = schedule.value[ds] || [];
         for (const id of ids) {
@@ -936,10 +940,9 @@ createApp({
     }
 
     // =============================================
-    // GAS DATA FUNCTIONS
+    // GAS DATA
     // =============================================
     async function loadAllData() {
-      // Workers грузим ПЕРВЫМ — остальные данные зависят от него (buildDay ищет worker по id)
       await loadWorkers();
       await Promise.allSettled([
         loadSchedule(),
@@ -956,20 +959,19 @@ createApp({
     }
 
     async function loadSchedule() {
-  try {
-    const data = await gasRequest({ action: 'getSchedule' });
-    const map = {};
-    (data || []).forEach(item => {
-      if (!map[item.date]) map[item.date] = [];
-      // Защита от дубликатов при загрузке
-      if (!map[item.date].includes(item.worker_id)) {
-        map[item.date].push(item.worker_id);
-      }
-    });
-    schedule.value = map;
-    scheduleLastUpdate = Date.now();
-  } catch(e) { console.error('loadSchedule:', e.message); }
-}
+      try {
+        const data = await gasRequest({ action: 'getSchedule' });
+        const map = {};
+        (data || []).forEach(item => {
+          if (!map[item.date]) map[item.date] = [];
+          if (!map[item.date].includes(item.worker_id)) {
+            map[item.date].push(item.worker_id);
+          }
+        });
+        schedule.value = map;
+        scheduleLastUpdate = Date.now();
+      } catch(e) { console.error('loadSchedule:', e.message); }
+    }
 
     async function loadUnavailability() {
       try {
@@ -1003,42 +1005,40 @@ createApp({
       refreshing.value = false;
     }
 
-    // GAS не поддерживает realtime — используем polling каждые 30 секунд
     function setupPolling() {
-  setInterval(async () => {
-    if (!user.value) return;
-    // Не перезагружаем пока есть активные операции записи
-    if (pendingOps > 0) {
-      console.log('Polling пропущен - есть активные операции');
-      return;
+      setInterval(async () => {
+        if (!user.value) return;
+        if (pendingOps > 0) {
+          console.log('Polling пропущен - есть активные операции');
+          return;
+        }
+        if (scheduleLastUpdate && (Date.now() - scheduleLastUpdate) < 15000) {
+          console.log('Polling пропущен - недавно обновляли');
+          return;
+        }
+        
+        await loadSchedule();
+        if (pendingOps > 0) return;
+        
+        await loadUnavailability();
+        if (user.value.role === 'worker') {
+          const prevMode = availabilityMode.value;
+          await loadAdmin();
+          if (prevMode !== availabilityMode.value) {
+            showToast(
+              availabilityMode.value
+                ? '📌 Режим отметок включён'
+                : '✅ Режим отметок закрыт',
+              availabilityMode.value ? 'warning' : 'success'
+            );
+          }
+        }
+      }, 30000);
     }
-    // Не обновляем если последнее обновление было менее 10 секунд назад
-    if (scheduleLastUpdate && (Date.now() - scheduleLastUpdate) < 10000) {
-      console.log('Polling пропущен - недавно обновляли');
-      return;
-    }
-    
-    await loadSchedule();
-    if (pendingOps > 0) return;
-    
-    await loadUnavailability();
-    if (user.value.role === 'worker') {
-      const prevMode = availabilityMode.value;
-      await loadAdmin();
-      if (prevMode !== availabilityMode.value) {
-        showToast(
-          availabilityMode.value
-            ? '📌 Режим отметок включён — отметьте дни когда не можете выйти'
-            : '✅ Режим отметок закрыт',
-          availabilityMode.value ? 'warning' : 'success'
-        );
-      }
-    }
-  }, 30000);
-}
 
-       
-    // Auth functions
+    // =============================================
+    // AUTH
+    // =============================================
     async function handleLogin() {
       loginError.value = '';
       const phone = formatPhone(loginPhone.value);
@@ -1138,7 +1138,9 @@ createApp({
       showSettings.value = false;
     }
     
-    // CRUD functions
+    // =============================================
+    // CRUD — WORKERS
+    // =============================================
     async function saveWorker() {
       const name = workerForm.value.name.trim();
       const phone = formatPhone(workerForm.value.phone);
@@ -1184,97 +1186,118 @@ createApp({
       });
     }
     
-  async function toggleSchedule(workerId, date) {
-  if (!date || !workerId) {
-    console.error('toggleSchedule: отсутствуют параметры', { workerId, date });
-    return;
-  }
-  
-  console.log('toggleSchedule вызван:', { workerId, date });
-  
-  const currentSchedule = schedule.value[date] || [];
-  const scheduled = currentSchedule.includes(workerId);
-  
-  console.log('Текущее расписание на дату:', date, currentSchedule);
-  console.log('Сотрудник назначен?', scheduled);
-  
-  if (scheduled) {
-    // Удаляем смену из UI мгновенно
-    schedule.value[date] = currentSchedule.filter(id => id !== workerId);
-    showToast('Смена удалена', 'success');
+    // =============================================
+    // CRUD — SCHEDULE (ПАКЕТНОЕ СОХРАНЕНИЕ)
+    // =============================================
     
-    pendingOps++;
-    try {
-      console.log('Отправляем запрос на удаление:', { 
-        action: 'removeSchedule', 
-        date: date, 
-        worker_id: workerId 
-      });
-      
-      const result = await gasRequest({ 
-        action: 'removeSchedule', 
-        date: date, 
-        worker_id: workerId 
-      });
-      
-      console.log('Результат удаления:', result);
-      
-      // Ждем 2 секунды
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Загружаем актуальные данные
-      await loadSchedule();
-      
-      console.log('Расписание после удаления:', schedule.value[date]);
-      
-    } catch(e) {
-      console.error('Ошибка удаления смены:', e);
-      // Восстанавливаем при ошибке
-      if (!schedule.value[date]) schedule.value[date] = [];
-      schedule.value[date] = [...schedule.value[date], workerId];
-      showToast('Ошибка удаления смены: ' + e.message, 'error');
-    } finally {
-      pendingOps--;
+    // Открыть модалку и запомнить исходное состояние дня
+    function openScheduleModal(dateStr) {
+      selectedScheduleDate.value = dateStr;
+      originalSchedule.value = [...(schedule.value[dateStr] || [])];
+      scheduleChanges.value = {};
+      showScheduleModal.value = true;
     }
-  } else {
-    // Добавление смены
-    if (!currentSchedule.includes(workerId)) {
-      schedule.value[date] = [...currentSchedule, workerId];
-      showToast('Смена добавлена', 'success');
+    
+    // Закрыть без сохранения
+    function closeScheduleModal() {
+      showScheduleModal.value = false;
+      scheduleChanges.value = {};
+      originalSchedule.value = [];
+    }
+    
+    // Определить, отмечен ли чекбокс (с учётом локальных изменений)
+    function isWorkerScheduled(workerId) {
+      const change = scheduleChanges.value[workerId];
+      if (change === 'add') return true;
+      if (change === 'remove') return false;
+      return originalSchedule.value.includes(workerId);
+    }
+    
+    // Переключить чекбокс в модальном окне
+    function toggleScheduleChange(workerId) {
+      const currentlyScheduled = isWorkerScheduled(workerId);
+      
+      if (currentlyScheduled) {
+        // Сейчас отмечен — планируем удаление
+        if (originalSchedule.value.includes(workerId)) {
+          scheduleChanges.value[workerId] = 'remove';
+        } else {
+          // Был добавлен в этом же сеансе — просто отменяем добавление
+          delete scheduleChanges.value[workerId];
+        }
+      } else {
+        // Сейчас не отмечен — планируем добавление
+        if (originalSchedule.value.includes(workerId)) {
+          // Был в оригинале и удалён — отменяем удаление
+          delete scheduleChanges.value[workerId];
+        } else {
+          scheduleChanges.value[workerId] = 'add';
+        }
+      }
+      
+      // Триггерим перерисовку чекбоксов
+      showScheduleModal.value = true;
+    }
+    
+    // Сохранить все изменения и закрыть модалку
+    async function saveScheduleChanges() {
+      const date = selectedScheduleDate.value;
+      if (!date) return;
+      
+      const changes = { ...scheduleChanges.value };
+      if (Object.keys(changes).length === 0) {
+        showScheduleModal.value = false;
+        return;
+      }
       
       pendingOps++;
+      showToast('💾 Сохранение...', 'warning');
+      
       try {
-        console.log('Отправляем запрос на добавление:', { 
-          action: 'addSchedule', 
-          date: date, 
-          worker_id: workerId 
-        });
+        // Применяем изменения локально
+        let newSchedule = [...(schedule.value[date] || [])];
         
-        await gasRequest({ 
-          action: 'addSchedule', 
-          date: date, 
-          worker_id: workerId 
-        });
+        // Отправляем каждое изменение в GAS
+        for (const [workerId, action] of Object.entries(changes)) {
+          if (action === 'add') {
+            await gasRequest({ action: 'addSchedule', date, worker_id: workerId });
+            if (!newSchedule.includes(workerId)) {
+              newSchedule.push(workerId);
+            }
+          } else if (action === 'remove') {
+            await gasRequest({ action: 'removeSchedule', date, worker_id: workerId });
+            newSchedule = newSchedule.filter(id => id !== workerId);
+          }
+        }
         
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await loadSchedule();
+        // Обновляем локальный стейт
+        schedule.value[date] = newSchedule;
+        scheduleLastUpdate = Date.now();
+        
+        showToast('✅ Изменения сохранены', 'success');
+        showScheduleModal.value = false;
+        
+        // Фоновая синхронизация с сервером
+        setTimeout(async () => {
+          await loadSchedule();
+        }, 2000);
         
       } catch(e) {
-        console.error('Ошибка добавления смены:', e);
-        schedule.value[date] = currentSchedule.filter(id => id !== workerId);
-        showToast('Ошибка добавления смены', 'error');
+        console.error('Ошибка сохранения:', e);
+        showToast('❌ Ошибка сохранения', 'error');
+        await loadSchedule(); // Восстанавливаем данные с сервера
       } finally {
         pendingOps--;
+        scheduleChanges.value = {};
+        originalSchedule.value = [];
       }
-    } else {
-      showToast('⚠️ Сотрудник уже назначен', 'warning');
     }
-  }
-}
     
+    // =============================================
+    // CRUD — UNAVAILABILITY
+    // =============================================
     async function clearUnavailability(workerId, dateStr) {
       if (user.value.role !== 'admin') return;
-      // Оптимистичное обновление
       unavailability.value[workerId] = (unavailability.value[workerId] || []).filter(d => d !== dateStr);
       pendingOps++;
       try {
@@ -1335,7 +1358,9 @@ createApp({
       await loadUnavailability();
     }
     
-    // UI functions
+    // =============================================
+    // UI
+    // =============================================
     function handleDayClick(day) {
       if (!user.value) return;
 
@@ -1349,8 +1374,7 @@ createApp({
       }
 
       if (user.value.role === 'admin' && day.isCurrentMonth) {
-        selectedScheduleDate.value = day.dateStr;
-        showScheduleModal.value = true;
+        openScheduleModal(day.dateStr);
       }
     }
     
@@ -1366,7 +1390,7 @@ createApp({
       }
       availabilityMode.value = newVal;
       showToast(
-        newVal ? '🟡 Режим отметок ВКЛЮЧЁН — сотрудники могут отмечать дни' : '🟢 Режим отметок выключен',
+        newVal ? '🟡 Режим отметок ВКЛЮЧЁН' : '🟢 Режим отметок выключен',
         'warning'
       );
     }
@@ -1447,6 +1471,9 @@ createApp({
       }
     }
     
+    // =============================================
+    // LIFECYCLE
+    // =============================================
     onMounted(async () => {
       document.body.className = isDark.value ? 'dark' : 'light';
 
@@ -1458,7 +1485,6 @@ createApp({
       await loadAllData();
       clearTimeout(loadTimeout);
 
-      // Автовход: восстанавливаем сессию после загрузки данных
       const saved = localStorage.getItem('ws_session');
       if (saved) {
         try {
@@ -1466,10 +1492,8 @@ createApp({
           if (sess.role === 'admin') {
             user.value = { id: 'admin', phone: SUPER_ADMIN_PHONE, role: 'admin', name: 'Администратор' };
           } else {
-            // Ищем сотрудника по id
             const w = workers.value.find(x => x.id === sess.id);
             if (w && w.is_active !== false) {
-              // Проверяем device_id — если привязан, должен совпадать
               if (!w.device_id || w.device_id === getDeviceId()) {
                 user.value = { id: w.id, phone: w.phone, role: w.role || 'worker', name: w.name };
               } else {
@@ -1486,10 +1510,11 @@ createApp({
       hideSplash();
     });
     
-    onUnmounted(() => {
-      // polling cleanup не нужен (setInterval очищается сам при закрытии страницы)
-    });
+    onUnmounted(() => {});
     
+    // =============================================
+    // RETURN
+    // =============================================
     return {
       user, loginPhone, loginPass, loginError, loading, refreshing, needAdminPassword,
       workers, schedule, unavailability, adminEmail,
@@ -1498,6 +1523,7 @@ createApp({
       showSettings, showWorkerModal, showScheduleModal,
       editingWorker, workerForm, selectedScheduleDate,
       isDark, showResetPasswordOption,
+      scheduleChanges, originalSchedule,
       handleLogin, resetAdminPassword, logout, closeSettings,
       prevMonth, nextMonth, goToday, refreshData,
       onTouchStart, onTouchMove, onTouchEnd,
@@ -1505,7 +1531,8 @@ createApp({
       toggleAvailabilityMode,
       openAddWorkerModal, openEditWorkerModal, saveWorker,
       toggleWorkerActive, resetDevice, deleteWorker,
-      openSetScheduleModal, toggleSchedule,
+      openScheduleModal, closeScheduleModal, saveScheduleChanges,
+      toggleScheduleChange, isWorkerScheduled,
       callWorker,
       saveAdminEmail, openSettings, toggleTheme, showToast,
       getWorkerColor, getDayUnavailable, getDayUnavailableInfo,
